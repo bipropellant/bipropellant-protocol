@@ -93,6 +93,8 @@ extern uint8_t enablescope; // enable scope on values
 
 static int speedB = 0;
 static int steerB = 0;
+int8_t asciiProtocolUnlocked = 0;
+int enable_immediate = 0;
 
 static char *control_types[]={
     "none",
@@ -134,7 +136,6 @@ static void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len);
 static char ascii_cmd[20];
 static char ascii_out[512];
 static int ascii_posn = 0;
-static int enable_immediate = 0;
 
 void ascii_byte(PROTOCOL_STAT *s, unsigned char byte ){
     int skipchar = 0;
@@ -382,6 +383,7 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
 /////////////////////////////////////////////
 // process commands which ended CR or LF
 void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
+    char password[] = "unlockASCII";   // unlock password, has to start with an 'u'
     ascii_out[0] = 0;
 
     // skip nuls, observed at startup
@@ -393,6 +395,10 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
     if (len == 0){ // makes double prompt if /r/n is sent by terminal
         //sprintf(ascii_out, "\r\n>");
         //s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
+        return;
+    }
+
+    if (!asciiProtocolUnlocked && cmd[0]!='u') {
         return;
     }
 
@@ -721,6 +727,29 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 // CR before prompt.... after message
                 sprintf(ascii_out, "\r\n");
             }
+            break;
+
+        case 'u':
+            if (len <  strlen(password)){
+                sprintf(ascii_out, "Wrong Password\r\n");
+            } else {
+                for (int i = 0; i < 11; i++){
+                    if(cmd[i] != password[i]) {
+                        sprintf(ascii_out, "Wrong Password\r\n");
+                        break;
+                    }
+                    if(i == 10) {
+                        asciiProtocolUnlocked = 1;
+                        sprintf(ascii_out, "ASCII protocol unlocked. ? for help\r\n");
+                    }
+                }
+            }
+            break;
+
+        case 'l':
+        case 'L':
+            asciiProtocolUnlocked = 0;
+            sprintf(ascii_out, "ASCII protocol locked.\r\n");
             break;
 
         default:

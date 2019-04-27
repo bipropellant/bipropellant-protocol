@@ -258,6 +258,8 @@ typedef struct tag_POSN_INCR {
     long Left;
     long Right;
 } POSN_INCR;
+extern int enable_immediate;
+
 extern PROTOCOL_STAT sUSART2;
 extern PROTOCOL_STAT sUSART3;
 extern PROTOCOL_STAT sSoftwareSerial;
