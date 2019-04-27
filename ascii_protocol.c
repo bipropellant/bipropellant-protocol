@@ -40,6 +40,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 
 //////////////////////////////////////////////////////////
@@ -346,6 +347,7 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             break;
 #endif
 
+#ifndef SKIP_STM32SPECIFIC
         case 'G':
         case 'g':
             processed = 1;
@@ -357,7 +359,7 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
                 (int)(CHARGER_PORT->IDR & CHARGER_PIN)?1:0
             );
             break;
-
+#endif
         case 'O':
         case 'o':{
             int control_old = control_type;

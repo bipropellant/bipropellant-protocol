@@ -161,9 +161,6 @@ typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
 
 } MACHINE_PROTOCOL_TX_BUFFER;
 
-// buffer to hold waiting messages in
-MACHINE_PROTOCOL_TX_BUFFER TxBuffer;
-
 //////////////////////////////////////////////////////////
 
 
