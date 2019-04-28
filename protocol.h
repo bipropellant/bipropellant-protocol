@@ -250,12 +250,13 @@ extern PROTOCOL_STAT sSoftwareSerial;
 
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
-extern void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
+void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
 // call this regularly from main.c
-extern void protocol_tick(PROTOCOL_STAT *s);
-extern void protocol_init(PROTOCOL_STAT *s);
+void protocol_tick(PROTOCOL_STAT *s);
+void protocol_init(PROTOCOL_STAT *s);
 /////////////////////////////////////////////////////////////////
-extern void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
+void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
+void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg);
 
 
 #endif
