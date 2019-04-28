@@ -257,6 +257,7 @@ void protocol_init(PROTOCOL_STAT *s);
 /////////////////////////////////////////////////////////////////
 void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
 void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg);
+int mpTxQueued(PROTOCOL_STAT *s);
 
 
 #endif

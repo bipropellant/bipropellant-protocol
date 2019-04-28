@@ -54,7 +54,6 @@
 
 
 
-static int mpTxQueued(PROTOCOL_STAT *s);
 static unsigned char mpGetTxByte(PROTOCOL_STAT *s);
 static char mpGetTxMsg(PROTOCOL_STAT *s, unsigned char *dest);
 static void mpPutTx(PROTOCOL_STAT *s, unsigned char value);
@@ -195,7 +194,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                             // 'if a message is received with the same CI as the last received message, ACK will be sent, but the message discarded.'
                             if (s->lastRXCI != s->curr_msg.CI){
                                 // protocol_process_message now takes len onwards
-                                protocol_process_message(&s, (PROTOCOL_LEN_ONWARDS*)(&(s->curr_msg.len)));
+                                protocol_process_message(s, (PROTOCOL_LEN_ONWARDS*)(&(s->curr_msg.len)));
                             }
                             s->lastRXCI = s->curr_msg.CI;
                         }
