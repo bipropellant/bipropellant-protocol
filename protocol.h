@@ -21,9 +21,6 @@
 #include "config.h"
 #include <stdint.h>
 
-
-
-
 //// control structures used in firmware
 typedef struct tag_POSN_DATA {
     // these get set
@@ -32,8 +29,6 @@ typedef struct tag_POSN_DATA {
     // configurations/constants
     int posn_max_speed; // max speed in this mode
     int posn_min_speed; // minimum speed (to get wheels moving)
-
-
 
     // just so it can be read back
     long posn_diff_mm[2];
@@ -50,7 +45,6 @@ typedef struct tag_SPEED_DATA {
     int speed_max_power; // max speed in this mode
     int speed_min_power; // minimum speed (to get wheels moving)
     int speed_minimum_speed; // below this, we don't ask it to do anything
-
 
     // just so it can be read back
     long speed_diff_mm_per_sec[2];
@@ -102,13 +96,6 @@ extern int control_type;
 /////////////////////////////////////////////////////////////////
 
 #pragma pack(push, 1)
-typedef struct tag_PROTOCOL_MSG {
-    unsigned char SOM; // 0x02
-    unsigned char len; // len is len of ALL bytes to follow, including CS
-    unsigned char bytes[254];  // variable number of data bytes, with a checksum on the end
-    // checksum such that sum of bytes len to CS is zero
-} PROTOCOL_MSG;
-
 typedef struct tag_PROTOCOL_MSG2 {
     unsigned char SOM; // 0x02
     unsigned char CI; // continuity counter
