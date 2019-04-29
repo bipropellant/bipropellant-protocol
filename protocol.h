@@ -53,25 +53,28 @@ typedef struct tag_SPEED_DATA {
 
 extern SPEED_DATA SpeedData;
 
+typedef struct tag_PWM_DATA {
+    // these get set
+    long pwm[2];
+
+    // configurations/constants
+    int speed_max_power; // max speed in this mode
+    int speed_min_power; // minimum speed (to get wheels moving)
+    int speed_minimum_pwm; // below this, we don't ask it to do anything
+} PWM_DATA;
+
+extern PWM_DATA PWMData;
+
+
+
 
 typedef struct {
     uint8_t buzzerFreq;
     uint8_t buzzerPattern;
     uint16_t buzzerLen;
-} BUZZER;
+} BUZZER_DATA;
 
-extern BUZZER Buzzer;
-
-
-typedef struct {
-    // both of these values are absolute values ranging from -1000 to 1000
-    // base_pwm plus/minus steer is the raw PWM value
-    // wether steer is added or substracted depends on the side R/L
-    int16_t base_pwm;
-    int16_t steer;
-} PWM_STEER_CMD;
-
-extern PWM_STEER_CMD PwmSteerCmd;
+extern BUZZER_DATA BuzzerData;
 
 
 extern int control_type;

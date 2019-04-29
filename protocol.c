@@ -67,12 +67,7 @@ SPEED_DATA SpeedData = {
     40 // minimum mm/s which we can ask for
 };
 
-PWM_STEER_CMD PwmSteerCmd = {
-    .base_pwm = 0,
-    .steer = 0,
-};
-
-BUZZER Buzzer = {
+BUZZER_DATA BuzzerData = {
     .buzzerFreq = 0,
     .buzzerPattern = 0,
     .buzzerLen = 0,
@@ -143,8 +138,6 @@ extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1,
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint16_t buzzerLen;
 extern uint8_t enablescope; // enable scope on values
-extern int steer; // global variable for steering. -1000 to 1000
-extern int speed; // global variable for speed. -1000 to 1000
 
 #ifndef SKIP_ELECTRICAL_MEASUREMENTS
     extern volatile ELECTRICAL_PARAMS electrical_measurements;
@@ -211,24 +204,22 @@ static SPEEDS speedsx = {0,0};
 
 // after write we call this...
 void PostWrite_setbuzzer(void){
-    buzzerFreq      = Buzzer.buzzerFreq;
-    buzzerLen       = Buzzer.buzzerLen;
-    buzzerPattern   = Buzzer.buzzerPattern;
+    buzzerFreq      = BuzzerData.buzzerFreq;
+    buzzerLen       = BuzzerData.buzzerLen;
+    buzzerPattern   = BuzzerData.buzzerPattern;
 }
 
 // before read we call this...
 void PreRead_getbuzzer(void){
-    Buzzer.buzzerFreq       = buzzerFreq;
-    Buzzer.buzzerLen        = buzzerLen;
-    Buzzer.buzzerPattern    = buzzerPattern;
+    BuzzerData.buzzerFreq       = buzzerFreq;
+    BuzzerData.buzzerLen        = buzzerLen;
+    BuzzerData.buzzerPattern    = buzzerPattern;
 }
 
 // before read we call this...
 void PreRead_getspeeds(void){
     speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
     speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
-    PwmSteerCmd.base_pwm = speed;
-    PwmSteerCmd.steer = steer;
 }
 
 //////////////////////////////////////////////
@@ -247,6 +238,8 @@ void PreWrite_enable() {
         SpeedData.wanted_speed_mm_per_sec[1] = 0;
         speedsx.speedl = 0;
         speedsx.speedr = 0;
+        PWMData.pwm[0] = 0;
+        PWMData.pwm[1] = 0;
 #ifdef FLASH_STORAGE
         init_PID_control();
 #endif
@@ -258,7 +251,7 @@ void PreWrite_enable() {
 void PreWrite_setspeeds(void){
     PreWrite_enable();
     enable = 1;
-    control_type = CONTROL_TYPE_PWM;
+    control_type = CONTROL_TYPE_SPEED;
     timeout = 0;
 }
 
@@ -268,6 +261,43 @@ void PostWrite_setspeeds(void){
     // SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
     // SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
 }
+
+
+PWM_DATA PWMData = {
+    .pwm[0] = 0,
+    .pwm[1] = 0,
+    .speed_max_power =  600,
+    .speed_min_power = -600,
+    .speed_minimum_pwm = 40 // guard value, below this set to zero
+};
+
+void PreWrite_setpwms(void){
+    PreWrite_enable();
+    enable = 1;
+    control_type = CONTROL_TYPE_PWM;
+    timeout = 0;
+}
+
+
+void PostWrite_setpwms() {
+    for (int i = 0; i < 2; i++) {
+        if (PWMData.pwm[i] > PWMData.speed_max_power) {
+            PWMData.pwm[i] = PWMData.speed_max_power;
+        }
+        if (PWMData.pwm[i] < PWMData.speed_min_power) {
+            PWMData.pwm[i] = PWMData.speed_min_power;
+        }
+        if ((PWMData.pwm[i] > 0) && (PWMData.pwm[i] < PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+        if ((PWMData.pwm[i] < 0) && (PWMData.pwm[i] > -PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+    }
+}
+
+
+
 
 #ifdef HALL_INTERRUPTS
 POSN Position;
@@ -367,8 +397,9 @@ PARAMSTAT params[] = {
 #ifndef EXCLUDE_DEADRECKONER
     { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL },
 #endif
-    { 0x20, NULL, NULL, UI_NONE, &PwmSteerCmd,      sizeof(PwmSteerCmd),     PARAM_RW, NULL,                     NULL, PreWrite_setspeeds, PostWrite_setspeeds },
-    { 0x21, NULL, NULL, UI_NONE, &Buzzer,           sizeof(Buzzer),          PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer },
+    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms },
+    { 0x0E, NULL, NULL, UI_NONE, &PWMData.pwm,      sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms },
+    { 0x21, NULL, NULL, UI_NONE, &BuzzerData,       sizeof(BuzzerData),      PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer },
 
 #ifdef FLASH_STORAGE
     { 0x80, "flash magic",        "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash },  // write this with CURRENT_MAGIC to commit to flash
@@ -474,7 +505,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             // note: original 'bytes' sent back, so leave len as is
             protocol_post(s, msg);
             // post second immediately to test buffering
-            protocol_post(s, msg);
+            // protocol_post(s, msg);
             break;
 
         default:
