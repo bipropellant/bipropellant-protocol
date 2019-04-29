@@ -53,6 +53,20 @@ typedef struct tag_SPEED_DATA {
 
 extern SPEED_DATA SpeedData;
 
+typedef struct tag_PWM_DATA {
+    // these get set
+    long pwm[2];
+
+    // configurations/constants
+    int speed_max_power; // max speed in this mode
+    int speed_min_power; // minimum speed (to get wheels moving)
+    int speed_minimum_pwm; // below this, we don't ask it to do anything
+} PWM_DATA;
+
+extern PWM_DATA PWMData;
+
+
+
 
 typedef struct {
     uint8_t buzzerFreq;

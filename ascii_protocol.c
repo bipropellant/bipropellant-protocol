@@ -201,13 +201,19 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
     #endif
                     break;
                 case CONTROL_TYPE_SPEED:
-#endif
-                case CONTROL_TYPE_PWM:
                     speedB += 10*dir;
                     PwmSteerCmd.base_pwm += 10*dir;
                     SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
                     sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
+                    break;
+#endif
+                case CONTROL_TYPE_PWM:
+                    speedB += 10*dir;
+                    PwmSteerCmd.base_pwm += 10*dir;
+                    PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    PWMData.pwm[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, pwm %ld, pwm %ld\r\n", speedB, steerB, PWMData.pwm[0], PWMData.pwm[1]);
                     break;
             }
             break;
@@ -231,13 +237,19 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
     #endif
                     break;
                 case CONTROL_TYPE_SPEED:
-#endif
-                case CONTROL_TYPE_PWM:
                     steerB += 10*dir;
                     PwmSteerCmd.steer += 10*dir;
                     SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
                     sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
+                    break;
+#endif
+                case CONTROL_TYPE_PWM:
+                    steerB += 10*dir;
+                    PwmSteerCmd.steer += 10*dir;
+                    PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    PWMData.pwm[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
+                    sprintf(ascii_out, "speed now %d, steer now %d, pwm %ld->%ld, pwm %ld->%ld\r\n", speedB, steerB, pwms[0], PWMData.pwm[0], pwms[1], PWMData.pwm[1]);
                     break;
             }
             break;

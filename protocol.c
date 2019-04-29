@@ -258,7 +258,7 @@ void PreWrite_enable() {
 void PreWrite_setspeeds(void){
     PreWrite_enable();
     enable = 1;
-    control_type = CONTROL_TYPE_PWM;
+    control_type = CONTROL_TYPE_SPEED;
     timeout = 0;
 }
 
@@ -268,6 +268,34 @@ void PostWrite_setspeeds(void){
     // SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
     // SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
 }
+
+
+PWM_DATA PWMData = {
+    {0,0},
+    600, // max
+    -600, // min
+    40 // guard value, below this set to zero
+};
+
+void PostWrite_setpwms() {
+    for (int i = 0; i < 2; i++) {
+        if (PWMData.pwm[i] > PWMData.speed_max_power) {
+            PWMData.pwm[i] = PWMData.speed_max_power;
+        }
+        if (PWMData.pwm[i] < PWMData.speed_min_power) {
+            PWMData.pwm[i] = PWMData.speed_min_power;
+        }
+        if ((PWMData.pwm[i] > 0) && (PWMData.pwm[i] < PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+        if ((PWMData.pwm[i] < 0) && (PWMData.pwm[i] > -PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+    }
+}
+
+
+
 
 #ifdef HALL_INTERRUPTS
 POSN Position;
@@ -367,6 +395,8 @@ PARAMSTAT params[] = {
 #ifndef EXCLUDE_DEADRECKONER
     { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL },
 #endif
+    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, NULL,               PostWrite_setpwms },
+
     { 0x20, NULL, NULL, UI_NONE, &PwmSteerCmd,      sizeof(PwmSteerCmd),     PARAM_RW, NULL,                     NULL, PreWrite_setspeeds, PostWrite_setspeeds },
     { 0x21, NULL, NULL, UI_NONE, &Buzzer,           sizeof(Buzzer),          PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer },
 
@@ -474,7 +504,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             // note: original 'bytes' sent back, so leave len as is
             protocol_post(s, msg);
             // post second immediately to test buffering
-            protocol_post(s, msg);
+            // protocol_post(s, msg);
             break;
 
         default:
