@@ -401,6 +401,8 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
     }
 
     if (!asciiProtocolUnlocked && cmd[0]!='u') {
+        sprintf(ascii_out, "Locked. Enter unlockASCII to enable ASCII input mode.\r\n>");
+        s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
         return;
     }
 
@@ -410,7 +412,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 "Hoverboard Mk1\r\n"\
                 "Cmds (press return after):\r\n"\
-                " A n m l -set buzzer (freq, patt, len_ms)\r\n");
+                " A n m l -set buzzer (freq, patt, len_ms) (e.g. A 4 0 1000)\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 
 #ifdef CONTROL_SENSOR
@@ -446,13 +448,18 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 "   O - toggle pOsitional control\r\n");
 #endif
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 "  Ip/Is/Iw - direct to posn/speed/pwm control\r\n"\
-                " T -send a test message A-ack N-nack T-test\r\n"\
-                " F - print/set a flash constant (Fa to print all, Fi to default all):\r\n"
-                "  Fss - print, Fss<n> - set\r\n"
-                );
+                " T - send a test message A-ack N-nack T-test\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+#ifdef FLASH_STORAGE
+            snprintf(ascii_out, sizeof(ascii_out)-1,
+                " F - print/set a flash constant (Fa to print all, Fi to default all):\r\n"
+                "  Fss - print, Fss<n> - set\r\n");
+            s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+#endif
 
             for (int i = 0; i < paramcount; i++){
                 if (params[i].uistr){
@@ -465,7 +472,8 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 }
             }
             snprintf(ascii_out, sizeof(ascii_out)-1,
-                " ? -show this\r\n"
+                " L - Lock ASCII protocol\r\n"
+                " ? - show this\r\n"
                 );
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 
@@ -733,16 +741,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
 
         case 'u':
             if (len <  strlen(password)){
-                sprintf(ascii_out, "Wrong Password\r\n");
+                sprintf(ascii_out, "Wrong Password - Enter unlockASCII to enable ASCII input mode.\r\n");
             } else {
                 for (int i = 0; i < 11; i++){
                     if(cmd[i] != password[i]) {
-                        sprintf(ascii_out, "Wrong Password\r\n");
+                    sprintf(ascii_out, "Wrong Password - Enter unlockASCII to enable ASCII input mode.\r\n");
                         break;
                     }
                     if(i == 10) {
                         asciiProtocolUnlocked = 1;
-                        sprintf(ascii_out, "ASCII protocol unlocked. ? for help\r\n");
+                        sprintf(ascii_out, "ASCII input active. Type ? for help\r\n");
                     }
                 }
             }
