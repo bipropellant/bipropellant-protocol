@@ -401,7 +401,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
     }
 
     if (!asciiProtocolUnlocked && cmd[0]!='u') {
-        sprintf(ascii_out, "Wrong Password - ASCII protocol locked.\r\n>");
+        sprintf(ascii_out, "Locked. Enter unlockASCII to enable ASCII input mode.\r\n>");
         s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
         return;
     }
@@ -741,16 +741,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
 
         case 'u':
             if (len <  strlen(password)){
-                sprintf(ascii_out, "Wrong Password - ASCII protocol locked.\r\n");
+                sprintf(ascii_out, "Wrong Password - Enter unlockASCII to enable ASCII input mode.\r\n");
             } else {
                 for (int i = 0; i < 11; i++){
                     if(cmd[i] != password[i]) {
-                        sprintf(ascii_out, "Wrong Password - ASCII protocol locked.\r\n");
+                    sprintf(ascii_out, "Wrong Password - Enter unlockASCII to enable ASCII input mode.\r\n");
                         break;
                     }
                     if(i == 10) {
                         asciiProtocolUnlocked = 1;
-                        sprintf(ascii_out, "ASCII protocol unlocked. ? for help\r\n");
+                        sprintf(ascii_out, "ASCII input active. Type ? for help\r\n");
                     }
                 }
             }
