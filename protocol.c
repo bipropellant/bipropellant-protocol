@@ -247,6 +247,8 @@ void PreWrite_enable() {
         SpeedData.wanted_speed_mm_per_sec[1] = 0;
         speedsx.speedl = 0;
         speedsx.speedr = 0;
+        PWMData.pwm[0] = 0;
+        PWMData.pwm[1] = 0;
 #ifdef FLASH_STORAGE
         init_PID_control();
 #endif
@@ -276,6 +278,14 @@ PWM_DATA PWMData = {
     -600, // min
     40 // guard value, below this set to zero
 };
+
+void PreWrite_setpwms(void){
+    PreWrite_enable();
+    enable = 1;
+    control_type = CONTROL_TYPE_PWM;
+    timeout = 0;
+}
+
 
 void PostWrite_setpwms() {
     for (int i = 0; i < 2; i++) {
