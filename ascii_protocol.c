@@ -187,7 +187,7 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
         case 'W':
         case 'w':
             processed = 1;
-            if (!enable) { speedB = 0; steerB = 0; PwmSteerCmd.base_pwm = 0; PwmSteerCmd.steer = 0; }
+            if (!enable) { speedB = 0; steerB = 0; }
             enable = 1;
             timeout = 0;
 
@@ -202,7 +202,6 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
                     break;
                 case CONTROL_TYPE_SPEED:
                     speedB += 10*dir;
-                    PwmSteerCmd.base_pwm += 10*dir;
                     SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
                     sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
@@ -210,7 +209,6 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
 #endif
                 case CONTROL_TYPE_PWM:
                     speedB += 10*dir;
-                    PwmSteerCmd.base_pwm += 10*dir;
                     PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     PWMData.pwm[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
                     sprintf(ascii_out, "speed now %d, steer now %d, pwm %ld, pwm %ld\r\n", speedB, steerB, PWMData.pwm[0], PWMData.pwm[1]);
@@ -224,7 +222,7 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
         case 'D':
         case 'd':
             processed = 1;
-            if (!enable) { speedB = 0; steerB = 0; PwmSteerCmd.base_pwm = 0; PwmSteerCmd.steer = 0; }
+            if (!enable) { speedB = 0; steerB = 0; }
             enable = 1;
             timeout = 0;
             switch (control_type){
@@ -238,7 +236,6 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
                     break;
                 case CONTROL_TYPE_SPEED:
                     steerB += 10*dir;
-                    PwmSteerCmd.steer += 10*dir;
                     SpeedData.wanted_speed_mm_per_sec[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     SpeedData.wanted_speed_mm_per_sec[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
                     sprintf(ascii_out, "speed now %d, steer now %d, speedL %ld, speedR %ld\r\n", speedB, steerB, SpeedData.wanted_speed_mm_per_sec[0], SpeedData.wanted_speed_mm_per_sec[1]);
@@ -246,10 +243,9 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
 #endif
                 case CONTROL_TYPE_PWM:
                     steerB += 10*dir;
-                    PwmSteerCmd.steer += 10*dir;
                     PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
                     PWMData.pwm[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
-                    sprintf(ascii_out, "speed now %d, steer now %d, pwm %ld->%ld, pwm %ld->%ld\r\n", speedB, steerB, pwms[0], PWMData.pwm[0], pwms[1], PWMData.pwm[1]);
+                    sprintf(ascii_out, "speed now %d, steer now %d, pwm %d->%ld, pwm %d->%ld\r\n", speedB, steerB, pwms[0], PWMData.pwm[0], pwms[1], PWMData.pwm[1]);
                     break;
             }
             break;
@@ -259,8 +255,8 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             processed = 1;
             speedB = 0;
             steerB = 0;
-            PwmSteerCmd.base_pwm = 0;
-            PwmSteerCmd.steer = 0;
+            PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+            PWMData.pwm[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
 #ifdef HALL_INTERRUPTS
             HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
@@ -284,8 +280,8 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             enable_immediate = 0;
             speedB = 0;
             steerB = 0;
-            PwmSteerCmd.base_pwm = 0;
-            PwmSteerCmd.steer = 0;
+            PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+            PWMData.pwm[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
 #ifdef HALL_INTERRUPTS
             HallData[0].HallSpeed_mm_per_s = HallData[1].HallSpeed_mm_per_s = 0;
@@ -413,6 +409,8 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
     }
 
     if (!asciiProtocolUnlocked && cmd[0]!='u') {
+        sprintf(ascii_out, "Locked. Enter unlockASCII to enable ASCII input mode.\r\n>");
+        s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
         return;
     }
 
@@ -422,7 +420,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 "Hoverboard Mk1\r\n"\
                 "Cmds (press return after):\r\n"\
-                " A n m l -set buzzer (freq, patt, len_ms)\r\n");
+                " A n m l -set buzzer (freq, patt, len_ms) (e.g. A 4 0 1000)\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 
 #ifdef CONTROL_SENSOR
@@ -458,13 +456,18 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 "   O - toggle pOsitional control\r\n");
 #endif
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 "  Ip/Is/Iw - direct to posn/speed/pwm control\r\n"\
-                " T -send a test message A-ack N-nack T-test\r\n"\
-                " F - print/set a flash constant (Fa to print all, Fi to default all):\r\n"
-                "  Fss - print, Fss<n> - set\r\n"
-                );
+                " T - send a test message A-ack N-nack T-test\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+#ifdef FLASH_STORAGE
+            snprintf(ascii_out, sizeof(ascii_out)-1,
+                " F - print/set a flash constant (Fa to print all, Fi to default all):\r\n"
+                "  Fss - print, Fss<n> - set\r\n");
+            s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+#endif
 
             for (int i = 0; i < paramcount; i++){
                 if (params[i].uistr){
@@ -477,7 +480,8 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 }
             }
             snprintf(ascii_out, sizeof(ascii_out)-1,
-                " ? -show this\r\n"
+                " L - Lock ASCII protocol\r\n"
+                " ? - show this\r\n"
                 );
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 
@@ -640,8 +644,8 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
         case 'i':
             speedB = 0;
             steerB = 0;
-            PwmSteerCmd.base_pwm = 0;
-            PwmSteerCmd.steer = 0;
+            PWMData.pwm[1] = CLAMP(speedB * SPEED_COEFFICIENT -  steerB * STEER_COEFFICIENT, -1000, 1000);
+            PWMData.pwm[0] = CLAMP(speedB * SPEED_COEFFICIENT +  steerB * STEER_COEFFICIENT, -1000, 1000);
             SpeedData.wanted_speed_mm_per_sec[0] = SpeedData.wanted_speed_mm_per_sec[1] = speedB;
             dspeeds[0] = dspeeds[1] = speedB;
 #ifdef HALL_INTERRUPTS
@@ -745,16 +749,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
 
         case 'u':
             if (len <  strlen(password)){
-                sprintf(ascii_out, "Wrong Password\r\n");
+                sprintf(ascii_out, "Wrong Password - Enter unlockASCII to enable ASCII input mode.\r\n");
             } else {
                 for (int i = 0; i < 11; i++){
                     if(cmd[i] != password[i]) {
-                        sprintf(ascii_out, "Wrong Password\r\n");
+                    sprintf(ascii_out, "Wrong Password - Enter unlockASCII to enable ASCII input mode.\r\n");
                         break;
                     }
                     if(i == 10) {
                         asciiProtocolUnlocked = 1;
-                        sprintf(ascii_out, "ASCII protocol unlocked. ? for help\r\n");
+                        sprintf(ascii_out, "ASCII input active. Type ? for help\r\n");
                     }
                 }
             }
