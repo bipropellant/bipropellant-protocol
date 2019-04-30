@@ -551,7 +551,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                     memset(&FlashContent, 0, sizeof(FlashContent));
                     memcpy(&FlashContent, &FlashDefaults, (sizeof(FlashContent) < sizeof(FlashDefaults))?sizeof(FlashContent) : sizeof(FlashDefaults)) ;
                     writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-                    sprintf(ascii_out, "Flash initiailised\r\n");
+                    sprintf(ascii_out, "Flash initialised\r\n");
                 } else {
                     if ((cmd[1] | 0x20) == 'a'){
                         // read all
@@ -765,6 +765,25 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             asciiProtocolUnlocked = 0;
             sprintf(ascii_out, "ASCII protocol locked.\r\n");
             break;
+
+        // memory read hex address
+        case 'm':
+        case 'M':{
+            unsigned char *addr = 0;
+            unsigned int len = 4;
+            sscanf(&cmd[1], "%lx,%x", (unsigned long *)&addr, &len);
+            for (int a = 0; a + len; a++) {
+                char t[5];
+                sprintf(t, "%02.2X ", *(addr+a));
+                strcat( ascii_out, t );
+                if (!((a+1)&16)){
+                    strcat( ascii_out, '\r\n' );
+                    s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                    ascii_out[0] = 0;
+                }
+            }
+            break;
+        }
 
         default:
             sprintf(ascii_out, "Unknown cmd %c\r\n", cmd[0]);
