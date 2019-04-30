@@ -480,6 +480,14 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 }
             }
             snprintf(ascii_out, sizeof(ascii_out)-1,
+                " M - dump memory\r\n"
+                "   Mf - dump flash\r\n"
+                "   M<hexaddr>,<hexlen> - dump mem\r\n"
+                " R! - Reset\r\n"
+                );
+            s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+            snprintf(ascii_out, sizeof(ascii_out)-1,
                 " L - Lock ASCII protocol\r\n"
                 " ? - show this\r\n"
                 );
@@ -555,7 +563,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                     memset(&FlashContent, 0, sizeof(FlashContent));
                     memcpy(&FlashContent, &FlashDefaults, (sizeof(FlashContent) < sizeof(FlashDefaults))?sizeof(FlashContent) : sizeof(FlashDefaults)) ;
                     writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-                    sprintf(ascii_out, "Flash initiailised\r\n");
+                    sprintf(ascii_out, "Flash initialised\r\n");
                 } else {
                     if ((cmd[1] | 0x20) == 'a'){
                         // read all
@@ -604,6 +612,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                                                         (int)*(short *)params[i].ptr
                                                 );
                                                 s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                                                ascii_out[0] = 0; // don't print last one twice
                                                 if (params[i].postread) params[i].postread();
                                             }
                                             break;
@@ -770,13 +779,54 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             sprintf(ascii_out, "ASCII protocol locked.\r\n");
             break;
 
+        case 'r':
+        case 'R':
+            if (cmd[1] == '!'){
+                sprintf(ascii_out, "\r\n!!!!!Resetting!!!!!\r\n");
+                s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                ascii_out[0] = 0;
+                HAL_Delay(500);
+                HAL_NVIC_SystemReset();
+            }
+            break;
+
+        // memory read hex address
+        case 'm':
+        case 'M':{
+            unsigned char tmp[100];
+            unsigned char *addr = 0;
+            unsigned int len = 4;
+            if (cmd[1] == 'f') {
+                int res = readFlash( tmp, 100 );
+                if (res > 0) {
+                    addr = tmp;
+                    len = res;
+                }
+            } else {
+                sscanf(&cmd[1], "%lx,%x", (unsigned long *)&addr, &len);
+            }
+            strcat( ascii_out, "\r\n" );
+            for (int a = 0; a < len; a++) {
+                char t[5];
+                sprintf(t, "%2.2X ", *(addr+a));
+                strcat( ascii_out, t );
+                if (!((a+1)&0xf)){
+                    strcat( ascii_out, "\r\n" );
+                    s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+                    ascii_out[0] = 0;
+                }
+            }
+            strcat( ascii_out, "\r\n" );
+            break;
+        }
+
         default:
             sprintf(ascii_out, "Unknown cmd %c\r\n", cmd[0]);
             break;
     }
     s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
     // prompt
-    sprintf(ascii_out, ">");
+    sprintf(ascii_out, "\r\n>");
     s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
 
 
