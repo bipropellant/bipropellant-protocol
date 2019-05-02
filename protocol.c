@@ -482,7 +482,10 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
                     break;
                 }
             }
-            // parameter code not found: no break, jump to default.
+            msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
+            msg->len = 1;
+            protocol_post(s, msg);
+            break;
         }
 
         case PROTOCOL_CMD_WRITEVALRESPONSE:{
@@ -492,7 +495,11 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
                     break;
                 }
             }
-            // parameter code not found: no break, jump to default.
+            // parameter code not found
+            msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
+            msg->len = 1;
+            protocol_post(s, msg);
+            break;
         }
 
         case PROTOCOL_CMD_WRITEVAL:{
