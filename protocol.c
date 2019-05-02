@@ -518,7 +518,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
                     }
                     msg->len = 1+1+1; // cmd+code+'1' only
                     writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
-                    msg->bytes[2] = 1; // say we wrote it
+                    writevals->content[0] = 1; // say we wrote it
                     // send back with 'write' command with no data.
                     protocol_post(s, msg);
                     if (params[i].postwrite) params[i].postwrite();
@@ -529,7 +529,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             if (i == sizeof(params)/sizeof(params[0])){
                 msg->len = 1+1+1; // cmd +code +'0' only
                 writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
-                msg->bytes[2] = 0; // say we did not write it
+                writevals->content[0] = 1; // say we did not write it
                 // send back with 'write' command plus data like write.
                 protocol_post(s, msg);
             }
@@ -549,6 +549,10 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             protocol_post(s, msg);
             // post second immediately to test buffering
             // protocol_post(s, msg);
+            break;
+
+        case PROTOCOL_CMD_UNKNOWN:
+            // Do nothing, otherwise endless loop is entered.
             break;
 
         default:
