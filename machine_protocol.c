@@ -20,7 +20,7 @@
 /*
 * usage:
 * call void protocol_byte( unsigned char byte ); with incoming bytes from main.call
-* will call protocol_process_message(PROTOCOL_LEN_ONWARDS *) when message received (protocol.c)
+* will call protocol_process_message when message received (protocol.c)
 * call protocol_post(PROTOCOL_LEN_ONWARDS *) to send a message
 */
 
