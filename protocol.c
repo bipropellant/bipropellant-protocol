@@ -482,9 +482,12 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
                     break;
                 }
             }
-            msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
+            // parameter code not found
+            if (i == sizeof(params)/sizeof(params[0])){
+                writevals->cmd = PROTOCOL_CMD_UNKNOWN;
             msg->len = 1;
             protocol_post(s, msg);
+            }
             break;
         }
 
@@ -496,9 +499,11 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
                 }
             }
             // parameter code not found
-            msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
+            if (i == sizeof(params)/sizeof(params[0])){
+                writevals->cmd = PROTOCOL_CMD_UNKNOWN;
             msg->len = 1;
             protocol_post(s, msg);
+            }
             break;
         }
 
@@ -544,7 +549,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
 
         case PROTOCOL_CMD_TEST:
             // just send it back!
-            msg->bytes[0] = PROTOCOL_CMD_TESTRESPONSE;
+            writevals->cmd = PROTOCOL_CMD_TESTRESPONSE;
             // note: original 'bytes' sent back, so leave len as is
             protocol_post(s, msg);
             // post second immediately to test buffering
@@ -556,7 +561,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             break;
 
         default:
-            msg->bytes[0] = PROTOCOL_CMD_UNKNOWN;
+            writevals->cmd = PROTOCOL_CMD_UNKNOWN;
             msg->len = 1;
             protocol_post(s, msg);
         break;
