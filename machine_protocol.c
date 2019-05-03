@@ -237,7 +237,7 @@ int protocol_post(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes){
     int total = len_bytes->len + 1; // +1 len
 
     if (txcount + total >= MACHINE_PROTOCOL_TX_BUFFER_SIZE-2) {
-        s->TxBuffer.overflow++;
+        s->TxBufferACK.overflow++;
         return -1;
     }
 
@@ -265,7 +265,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes){
         memcpy(&s->curr_send_msg.len, len_bytes, len_bytes->len + 1);
     } else {
         // else try to send from queue
-        int ismsg = mpGetTxMsg(&s->TxBufferACK, &s->curr_send_msg_withAck.len);
+        int ismsg = mpGetTxMsg(&s->TxBufferACK, &s->curr_send_msg.len);
         if (ismsg){
             s->curr_send_msg.SOM = PROTOCOL_SOM;
             s->curr_send_msg.CI = CI;
