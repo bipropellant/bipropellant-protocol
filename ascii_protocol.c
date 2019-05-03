@@ -107,7 +107,7 @@ static char *control_types[]={
 ///////////////////////////////////////////////
 
 
-extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes);
+extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
 
 // from protocol.c
 extern POSN Position;
@@ -748,8 +748,8 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                         break;
                     case 'T':
                     case 't':{
-                            char tmp[] = { 5, PROTOCOL_CMD_TEST, 'T', 'e', 's', 't' };
-                            protocol_post(s, (PROTOCOL_LEN_ONWARDS*)tmp);
+                            char tmp[] = { PROTOCOL_SOM_ACK, 0, 5, PROTOCOL_CMD_TEST, 'T', 'e', 's', 't' };
+                            protocol_post(s, (PROTOCOL_MSG2*)tmp);
                         }
                         break;
                 }
