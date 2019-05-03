@@ -432,15 +432,13 @@ int paramcount = sizeof(params)/sizeof(params[0]);
 // a complete machineprotocl message has been
 // received without error
 void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
-    PROTOCOL_BYTES           *bytes     = (PROTOCOL_BYTES *)msg->bytes;
-    PROTOCOL_BYTES_READVALS  *readvals  = (PROTOCOL_BYTES_READVALS *) msg->bytes;
     PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
-    switch (bytes->cmd){
+    switch (writevals->cmd){
         case PROTOCOL_CMD_READVAL:{
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
-                if (params[i].code == readvals->code){
+                if (params[i].code == writevals->code){
                     if (params[i].preread) params[i].preread();
                     // NOTE: re-uses the msg object (part of stats)
                     unsigned char *src = params[i].ptr;
@@ -448,7 +446,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
                         writevals->content[j] = *(src++);
                     }
                     msg->len = 1+1+params[i].len;  // command + code + data len only
-                    readvals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
+                    writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
                     // send back with 'read' command plus data like write.
                     protocol_post(s, msg);
                     if (params[i].postread) params[i].postread();
@@ -458,7 +456,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             // parameter code not found
             if (i == sizeof(params)/sizeof(params[0])){
                 msg->len = 1+1; // cmd + code only
-                readvals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
+                writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
                 // send back with 'read' command plus data like write.
                 protocol_post(s, msg);
             }
@@ -468,7 +466,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
         case PROTOCOL_CMD_READVALRESPONSE:{
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
-                if (params[i].code == readvals->code){
+                if (params[i].code == writevals->code){
                     if (params[i].receivedread) params[i].receivedread();
 
                     unsigned char *dest = params[i].ptr;
@@ -484,9 +482,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             }
             // parameter code not found
             if (i == sizeof(params)/sizeof(params[0])){
-                writevals->cmd = PROTOCOL_CMD_UNKNOWN;
-            msg->len = 1;
-            protocol_post(s, msg);
+                s->unplausibleresponse++;
             }
             break;
         }
@@ -500,9 +496,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             }
             // parameter code not found
             if (i == sizeof(params)/sizeof(params[0])){
-                writevals->cmd = PROTOCOL_CMD_UNKNOWN;
-            msg->len = 1;
-            protocol_post(s, msg);
+                s->unplausibleresponse++;
             }
             break;
         }
@@ -534,7 +528,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
             if (i == sizeof(params)/sizeof(params[0])){
                 msg->len = 1+1+1; // cmd +code +'0' only
                 writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
-                writevals->content[0] = 1; // say we did not write it
+                writevals->content[0] = 0; // say we did not write it
                 // send back with 'write' command plus data like write.
                 protocol_post(s, msg);
             }
@@ -558,9 +552,11 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
 
         case PROTOCOL_CMD_UNKNOWN:
             // Do nothing, otherwise endless loop is entered.
+            s->unknowncommands++;
             break;
 
         default:
+            s->unknowncommands++;
             writevals->cmd = PROTOCOL_CMD_UNKNOWN;
             msg->len = 1;
             protocol_post(s, msg);

@@ -171,6 +171,8 @@ typedef struct tag_PROTOCOL_STAT {
 
     unsigned int unwantedacks;
     unsigned int unwantednacks;
+    unsigned int unknowncommands;
+    unsigned int unplausibleresponse;
 
     char send_state;
     PROTOCOL_MSG2 curr_send_msg;
