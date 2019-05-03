@@ -121,12 +121,14 @@ typedef struct tag_PROTOCOL_BYTES {
 
 // content of 'bytes' above, for single byte commands
 #define PROTOCOL_CMD_READVAL 'R'
+#define PROTOCOL_CMD_READVALRESPONSE 'r'
 typedef struct tag_PROTOCOL_BYTES_READVALS {
     unsigned char cmd; // 'R'
     unsigned char code; // code of value to read
 } PROTOCOL_BYTES_READVALS;
 
 #define PROTOCOL_CMD_WRITEVAL 'W'
+#define PROTOCOL_CMD_WRITEVALRESPONSE 'w'
 typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
     unsigned char cmd; // 'W'
     unsigned char code; // code of value to write
@@ -169,6 +171,8 @@ typedef struct tag_PROTOCOL_STAT {
 
     unsigned int unwantedacks;
     unsigned int unwantednacks;
+    unsigned int unknowncommands;
+    unsigned int unplausibleresponse;
 
     char send_state;
     PROTOCOL_MSG2 curr_send_msg;
@@ -205,10 +209,11 @@ typedef struct tag_PARAMSTAT {
     char len;               // length of value
     char rw;                // PARAM_R or PARAM_RW
 
-    void (*preread)(void);                // function to call after write
-    void (*postread)(void);                // function to call after write
-    void (*prewrite)(void);                // function to call after write
-    void (*postwrite)(void);                // function to call after write
+    void (*preread)(void);                // function to call before read
+    void (*postread)(void);               // function to call after read
+    void (*prewrite)(void);               // function to call before write
+    void (*postwrite)(void);              // function to call after write
+    void (*receivedread)(void);           // function to call after requested data was received
 } PARAMSTAT;
 #pragma pack(pop)
 
@@ -262,5 +267,8 @@ void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
 void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg);
 int mpTxQueued(PROTOCOL_STAT *s);
 
+//////////////////////////////////////////////////////////
+// Function pointer which can be set for "debugging"
+extern void (*debugprint)(const char str[]);
 
 #endif
