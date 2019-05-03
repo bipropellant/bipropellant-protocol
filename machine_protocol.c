@@ -54,9 +54,9 @@
 
 
 
-static unsigned char mpGetTxByte(PROTOCOL_STAT *s);
-static char mpGetTxMsg(PROTOCOL_STAT *s, unsigned char *dest);
-static void mpPutTx(PROTOCOL_STAT *s, unsigned char value);
+static unsigned char mpGetTxByte(MACHINE_PROTOCOL_TX_BUFFER *buf);
+static char mpGetTxMsg(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char *dest);
+static void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value);
 //
 //////////////////////////////////////////////////////////////////
 
@@ -146,7 +146,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                                 s->last_send_time = 0;
                                 s->send_state = PROTOCOL_TX_IDLE;
                                 // if we got ack, then try to send a next message
-                                int txcount = mpTxQueued(s);
+                                int txcount = mpTxQueued(&s->TxBufferACK);
                                 if (txcount){
                                     // send from tx queue
                                     protocol_send(s, NULL);
@@ -174,7 +174,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                             } else {
                                 s->send_state = PROTOCOL_TX_IDLE;
                                 // if we run out of retries, then try to send a next message
-                                int txcount = mpTxQueued(s);
+                                int txcount = mpTxQueued(&s->TxBufferACK);
                                 if (txcount){
                                     // send from tx queue
                                     protocol_send(s, NULL);
@@ -227,7 +227,7 @@ void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), 
 //  0 sent immediately
 //  1 queued for later TX
 int protocol_post(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes){
-    int txcount = mpTxQueued(s);
+    int txcount = mpTxQueued(&s->TxBufferACK);
     if ((s->send_state != PROTOCOL_TX_WAITING) && !txcount){
 
         return protocol_send(s, len_bytes);
@@ -243,7 +243,7 @@ int protocol_post(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes){
 
     char *src = (char *) len_bytes;
     for (int i = 0; i < total; i++) {
-        mpPutTx(s, *(src++));
+        mpPutTx(&s->TxBufferACK, *(src++));
     }
 
     return 1; // added to queue
@@ -265,7 +265,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes){
         memcpy(&s->curr_send_msg.len, len_bytes, len_bytes->len + 1);
     } else {
         // else try to send from queue
-        int ismsg = mpGetTxMsg(s, &s->curr_send_msg.len);
+        int ismsg = mpGetTxMsg(&s->TxBufferACK, &s->curr_send_msg_withAck.len);
         if (ismsg){
             s->curr_send_msg.SOM = PROTOCOL_SOM;
             s->curr_send_msg.CI = CI;
@@ -302,7 +302,7 @@ void protocol_tick(PROTOCOL_STAT *s){
     s->last_tick_time = HAL_GetTick();
     switch(s->send_state){
         case PROTOCOL_TX_IDLE:{
-                int txcount = mpTxQueued(s);
+                int txcount = mpTxQueued(&s->TxBufferACK);
                 if (txcount){
                     // send from tx queue
                     protocol_send(s, NULL);
@@ -319,7 +319,7 @@ void protocol_tick(PROTOCOL_STAT *s){
                 } else {
                     s->send_state = PROTOCOL_TX_IDLE;
                     // if we run out of retries, then try to send a next message
-                    int txcount = mpTxQueued(s);
+                    int txcount = mpTxQueued(&s->TxBufferACK);
                     if (txcount){
                         // send from tx queue
                         protocol_send(s, NULL);
@@ -358,9 +358,9 @@ void protocol_tick(PROTOCOL_STAT *s){
 }
 
 
-int mpTxQueued(PROTOCOL_STAT *s){
-    if (s->TxBuffer.head != s->TxBuffer.tail){
-        int count = s->TxBuffer.head - s->TxBuffer.tail;
+int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf){
+    if (buf->head != buf->tail){
+        int count = buf->head - buf->tail;
         if (count < 0){
             count += MACHINE_PROTOCOL_TX_BUFFER_SIZE;
         }
@@ -369,29 +369,29 @@ int mpTxQueued(PROTOCOL_STAT *s){
     return 0;
 }
 
-unsigned char mpGetTxByte(PROTOCOL_STAT *s){
+unsigned char mpGetTxByte(MACHINE_PROTOCOL_TX_BUFFER *buf){
     short t = -1;
-    if (s->TxBuffer.head != s->TxBuffer.tail){
-        t = s->TxBuffer.buff[s->TxBuffer.tail];
-        s->TxBuffer.tail = ((s->TxBuffer.tail + 1 ) % MACHINE_PROTOCOL_TX_BUFFER_SIZE);
+    if (buf->head != buf->tail){
+        t = buf->buff[buf->tail];
+        buf->tail = ((buf->tail + 1 ) % MACHINE_PROTOCOL_TX_BUFFER_SIZE);
     }
     return t;
 }
 
-char mpGetTxMsg(PROTOCOL_STAT *s, unsigned char *dest){
-    if (mpTxQueued(s)) {
-        unsigned char len = *(dest++) = mpGetTxByte(s); // len of bytes to follow
+char mpGetTxMsg(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char *dest){
+    if (mpTxQueued(buf)) {
+        unsigned char len = *(dest++) = mpGetTxByte(buf); // len of bytes to follow
         for (int i = 0; i < len; i++) {
-            *(dest++) = mpGetTxByte(s); // data
+            *(dest++) = mpGetTxByte(buf); // data
         }
         return 1; // we got a message
     }
     return 0;
 }
 
-void mpPutTx(PROTOCOL_STAT *s, unsigned char value){
-    s->TxBuffer.buff[s->TxBuffer.head] = value;
-    s->TxBuffer.head = ((s->TxBuffer.head + 1 ) % MACHINE_PROTOCOL_TX_BUFFER_SIZE);
+void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value){
+    buf->buff[buf->head] = value;
+    buf->head = ((buf->head + 1 ) % MACHINE_PROTOCOL_TX_BUFFER_SIZE);
 }
 
 

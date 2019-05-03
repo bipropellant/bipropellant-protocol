@@ -184,7 +184,7 @@ typedef struct tag_PROTOCOL_STAT {
     int (*send_serial_data)( unsigned char *data, int len );
     int (*send_serial_data_wait)( unsigned char *data, int len );
 
-    MACHINE_PROTOCOL_TX_BUFFER TxBuffer;
+    MACHINE_PROTOCOL_TX_BUFFER TxBufferACK;  // Buffer for Messages to be sent
 
 } PROTOCOL_STAT;
 
@@ -265,7 +265,7 @@ void protocol_init(PROTOCOL_STAT *s);
 /////////////////////////////////////////////////////////////////
 void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
 void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg);
-int mpTxQueued(PROTOCOL_STAT *s);
+int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 
 //////////////////////////////////////////////////////////
 // Function pointer which can be set for "debugging"
