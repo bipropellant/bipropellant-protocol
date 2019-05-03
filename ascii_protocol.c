@@ -479,6 +479,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                     s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
                 }
             }
+#ifdef FLASH_STORAGE
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 " M - dump memory\r\n"
                 "   Mf - dump flash\r\n"
@@ -486,6 +487,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                 " R! - Reset\r\n"
                 );
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+#endif
 
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 " L - Lock ASCII protocol\r\n"
@@ -790,6 +792,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             }
             break;
 
+#ifdef FLASH_STORAGE
         // memory read hex address
         case 'm':
         case 'M':{
@@ -819,6 +822,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             strcat( ascii_out, "\r\n" );
             break;
         }
+#endif
 
         default:
             sprintf(ascii_out, "Unknown cmd %c\r\n", cmd[0]);
