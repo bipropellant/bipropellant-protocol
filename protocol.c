@@ -131,7 +131,7 @@ extern void init_PID_control();
     extern volatile ELECTRICAL_PARAMS electrical_measurements;
 #endif
 
-void PostWrite_writeflash(){
+void PostWrite_writeflash(PROTOCOL_STAT *s){
     if (FlashContent.magic != CURRENT_MAGIC){
         char temp[128];
         sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
@@ -143,11 +143,11 @@ void PostWrite_writeflash(){
     consoleLog("wrote flash\r\n");
 }
 
-void PostWrite_PID(){
+void PostWrite_PID(PROTOCOL_STAT *s){
     change_PID_constants();
 }
 
-void PostWrite_Cur_Limit(){
+void PostWrite_Cur_Limit(PROTOCOL_STAT *s){
     electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
 }
 
@@ -160,7 +160,7 @@ void PostWrite_Cur_Limit(){
 
 //////////////////////////////////////////////
 // make values safe before we change enable...
-void PreWrite_enable() {
+void PreWrite_enable(PROTOCOL_STAT *s) {
     if (!enable) {
 #ifdef HALL_INTERRUPTS
         // assume we will enable,
@@ -209,13 +209,13 @@ SPEED_DATA SpeedData = {
 };
 
 
-void PreRead_getspeeds(void){
+void PreRead_getspeeds(PROTOCOL_STAT *s){
     speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
     speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
 }
 
-void PreWrite_setspeeds(void){
-    PreWrite_enable();
+void PreWrite_setspeeds(PROTOCOL_STAT *s){
+    PreWrite_enable(s);
     enable = 1;
     control_type = CONTROL_TYPE_SPEED;
     timeout = 0;
@@ -227,14 +227,14 @@ void PreWrite_setspeeds(void){
 
 POSN Position;
 
-void PreRead_getposnupdate(){
+void PreRead_getposnupdate(PROTOCOL_STAT *s){
     Position.LeftAbsolute = HallData[0].HallPosn_mm;
     Position.LeftOffset = HallData[0].HallPosn_mm - HallData[0].HallPosn_mm_lastread;
     Position.RightAbsolute = HallData[1].HallPosn_mm;
     Position.RightOffset = HallData[1].HallPosn_mm - HallData[1].HallPosn_mm_lastread;
 }
 
-void PostWrite_setposnupdate(){
+void PostWrite_setposnupdate(PROTOCOL_STAT *s){
     HallData[0].HallPosn_mm_lastread = Position.LeftAbsolute;
     HallData[1].HallPosn_mm_lastread = Position.RightAbsolute;
 }
@@ -244,13 +244,13 @@ void PostWrite_setposnupdate(){
 
 POSN_INCR PositionIncr;
 
-void PostWrite_incrementposition(){
+void PostWrite_incrementposition(PROTOCOL_STAT *s){
     // if switching to control type POSITION,
     if ((control_type != CONTROL_TYPE_POSITION) || !enable) {
         control_type = CONTROL_TYPE_POSITION;
         // then make sure we won't rush off somwehere strange
         // by setting our wanted posn to where we currently are...
-        PreWrite_enable();
+        PreWrite_enable(s);
     }
 
     enable = 1;
@@ -277,14 +277,14 @@ POSN_DATA PosnData = {
 
 POSN RawPosition;
 
-void PreRead_getrawposnupdate(){
+void PreRead_getrawposnupdate(PROTOCOL_STAT *s){
     RawPosition.LeftAbsolute = HallData[0].HallPosn;
     RawPosition.LeftOffset = HallData[0].HallPosn - HallData[0].HallPosn_lastread;
     RawPosition.RightAbsolute = HallData[1].HallPosn;
     RawPosition.RightOffset = HallData[1].HallPosn - HallData[1].HallPosn_lastread;
 }
 
-void PostWrite_setrawposnupdate(){
+void PostWrite_setrawposnupdate(PROTOCOL_STAT *s){
     HallData[0].HallPosn_lastread = RawPosition.LeftAbsolute;
     HallData[1].HallPosn_lastread = RawPosition.RightAbsolute;
 }
@@ -323,15 +323,36 @@ PWM_DATA PWMData = {
 
 extern int pwms[2];
 
-void PreWrite_setpwms(void){
-    PreWrite_enable();
+void PreWrite_setpwms(PROTOCOL_STAT *s){
+    PreWrite_enable(s);
     enable = 1;
     control_type = CONTROL_TYPE_PWM;
     timeout = 0;
 }
 
+void PostReceivedread_setpwms(PROTOCOL_STAT *s) {
+    PreWrite_enable(s);
+    enable = 1;
+    control_type = CONTROL_TYPE_PWM;
+    timeout = 0;
 
-void PostWrite_setpwms() {
+    for (int i = 0; i < 2; i++) {
+        if (PWMData.pwm[i] > PWMData.speed_max_power) {
+            PWMData.pwm[i] = PWMData.speed_max_power;
+        }
+        if (PWMData.pwm[i] < PWMData.speed_min_power) {
+            PWMData.pwm[i] = PWMData.speed_min_power;
+        }
+        if ((PWMData.pwm[i] > 0) && (PWMData.pwm[i] < PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+        if ((PWMData.pwm[i] < 0) && (PWMData.pwm[i] > -PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+    }
+}
+
+void PostWrite_setpwms(PROTOCOL_STAT *s) {
     for (int i = 0; i < 2; i++) {
         if (PWMData.pwm[i] > PWMData.speed_max_power) {
             PWMData.pwm[i] = PWMData.speed_max_power;
@@ -361,18 +382,50 @@ extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1,
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint16_t buzzerLen;
 
-void PostWrite_setbuzzer(void){
+void PostWrite_setbuzzer(PROTOCOL_STAT *s){
     buzzerFreq      = BuzzerData.buzzerFreq;
     buzzerLen       = BuzzerData.buzzerLen;
     buzzerPattern   = BuzzerData.buzzerPattern;
 }
 
-void PreRead_getbuzzer(void){
+void PreRead_getbuzzer(PROTOCOL_STAT *s){
     BuzzerData.buzzerFreq       = buzzerFreq;
     BuzzerData.buzzerLen        = buzzerLen;
     BuzzerData.buzzerPattern    = buzzerPattern;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x22 SubscribeData
+
+SUBSCRIBEDATA SubscribeData =  { .code=0, .period=0, .count=0, .som=0 };
+
+void PostWrite_setSubscription(PROTOCOL_STAT *s) {
+    int len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
+    int index = 0;
+
+    // Check if subscription already exists for this code
+    for (index = 0; index < len; index++) {
+        if(s->subscriptions[index].code == SubscribeData.code) {
+            break;
+        }
+    }
+
+    // If code was not found, look for vacant subscription slot
+    if(index == len) {
+        for (index = 0; index < len; index++) {
+            if( s->subscriptions[index].code == 0 || s->subscriptions[index].count == 0 ) {
+                break;
+            }
+        }
+    }
+
+    // Fill in new subscription when possible; Plausibility check for period
+    if(index < len || SubscribeData.period >= 10) {
+        s->subscriptions[index] = SubscribeData;
+    } else {
+        // TODO. Inform sender??
+    }
+}
 
 
 // NOTE: Don't start uistr with 'a'
@@ -397,9 +450,10 @@ PARAMSTAT params[] = {
 #ifndef EXCLUDE_DEADRECKONER
     { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL,                        NULL },
 #endif
-    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
-    { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
+    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
+    { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
     { 0x21, NULL, NULL, UI_NONE, &BuzzerData,       sizeof(BuzzerData),      PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer,         NULL },
+    { 0x22, NULL, NULL, UI_NONE, &SubscribeData,    sizeof(SubscribeData),   PARAM_RW, NULL,                     NULL, NULL,               PostWrite_setSubscription,   PostWrite_setSubscription },
 
 #ifdef FLASH_STORAGE
     { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash, NULL },  // write this with CURRENT_MAGIC to commit to flash
@@ -433,7 +487,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].preread) params[i].preread();
+                    if (params[i].preread) params[i].preread(s);
                     // NOTE: re-uses the msg object (part of stats)
                     unsigned char *src = params[i].ptr;
                     for (int j = 0; j < params[i].len; j++){
@@ -443,7 +497,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
                     // send back with 'read' command plus data like write.
                     protocol_post(s, msg);
-                    if (params[i].postread) params[i].postread();
+                    if (params[i].postread) params[i].postread(s);
                     break;
                 }
             }
@@ -461,7 +515,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].receivedread) params[i].receivedread();
+                    if (params[i].receivedread) params[i].receivedread(s);
 
                     unsigned char *dest = params[i].ptr;
                     // ONLY copy what we have, else we're stuffing random data in.
@@ -499,7 +553,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].prewrite) params[i].prewrite();
+                    if (params[i].prewrite) params[i].prewrite(s);
                     // NOTE: re-uses the msg object (part of stats)
                     unsigned char *dest = params[i].ptr;
 
@@ -514,7 +568,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     writevals->content[0] = 1; // say we wrote it
                     // send back with 'write' command with no data.
                     protocol_post(s, msg);
-                    if (params[i].postwrite) params[i].postwrite();
+                    if (params[i].postwrite) params[i].postwrite(s);
                     break;
                 }
             }
