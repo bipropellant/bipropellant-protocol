@@ -205,8 +205,8 @@ typedef struct tag_PROTOCOL_STAT {
 #pragma pack(push, 1)
 typedef struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
-    char *description;          // if non-null, description
-    char *uistr;          // if non-null, used in ascii protocol to adjust with f<str>num<cr>
+    char *description;      // if non-null, description
+    char *uistr;            // if non-null, used in ascii protocol to adjust with f<str>num<cr>
     char ui_type;           // only UI_NONE or UI_SHORT
     void *ptr;              // pointer to value
     char len;               // length of value
@@ -263,16 +263,33 @@ extern PROTOCOL_STAT sSoftwareSerial;
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
 void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
+
+/////////////////////////////////////////////////////////////////
+// call this schedule a message. CI and Checksum are added
+int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
+
+/////////////////////////////////////////////////////////////////
 // call this regularly from main.c
 void protocol_tick(PROTOCOL_STAT *s);
-void protocol_init(PROTOCOL_STAT *s);
+
 /////////////////////////////////////////////////////////////////
+// initialize protocol
+void protocol_init(PROTOCOL_STAT *s);
+
+/////////////////////////////////////////////////////////////////
+// processes ASCII characters
 void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
+
+/////////////////////////////////////////////////////////////////
+// processes machine protocol messages
 void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
+
+/////////////////////////////////////////////////////////////////
+// get buffer level
 int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 
-//////////////////////////////////////////////////////////
-// Function pointer which can be set for "debugging"
+/////////////////////////////////////////////////////////////////
+// callback which can be used for "debugging"
 extern void (*debugprint)(const char str[]);
 
 #endif

@@ -26,9 +26,6 @@
 #ifdef HALL_INTERRUPTS
     #include "hallinterrupts.h"
 #endif
-#ifdef SOFTWARE_SERIAL
-    #include "softwareserial.h"
-#endif
 #ifndef SKIP_ELECTRICAL_MEASUREMENTS
     #include "bldc.h"
 #endif
@@ -44,117 +41,39 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifndef EXCLUDE_DEADRECKONER
-// ded reckoning posn
-extern INTEGER_XYT_POSN xytPosn;
-#endif
 
-//////////////////////////////////////////////////////////
+//////////////////////////////////////////////
 // Function pointer which can be set for "debugging"
 void noprint(const char str[]) {};
 void (*debugprint)(const char str[]) = noprint;
 
-//////////////////////////////////////////////////////////
+//////////////////////////////////////////////
 // things needed by main.c
 int control_type = 0;
-#ifdef HALL_INTERRUPTS
-POSN_DATA PosnData = {
-    {0, 0},
-
-    200, // max pwm in posn mode
-    70, // min pwm in posn mode
-};
-#endif
-SPEED_DATA SpeedData = {
-    {0, 0},
-
-    600, // max power (PWM)
-    -600,  // min power
-    40 // minimum mm/s which we can ask for
-};
-
-BUZZER_DATA BuzzerData = {
-    .buzzerFreq = 0,
-    .buzzerPattern = 0,
-    .buzzerLen = 0,
-};
-
-//////////////////////////////////////////////////////////
-
-
 
 
 #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
-//////////////////////////////////////////////////////////
-//
-// Machine protocol:
-// a very simple protocol, starting 02 (SOM), with length and checksum
-// examples:
-// ack - 02 02 41 BD
-// nack - 02 02 4E B0
-// test - 02 06 54 54 65 73 74 06
-// e.g. for test:
-// 02 - SOM
-// 06 - length = 6
-// 54 - byte0 - 'cmd' 'T'
-// 54 - byte1 - payload for text command - 'T'est
-// 65 - byte2 - 'e'
-// 73 - byte3 - 's'
-// 74 - byte4 - 't'
-// 06 - checksum = (00 - (06+54+54+65+73+74))&0xff = 06,
-// or  can be stated as : (06+54+54+65+73+74+06)&0xff = 0
-//
-// if a message is received with invalid checksum, then nack will be sent.
-// if a message is received complete, it will with be responded to with a
-// return message, or with the ack message
-//
-// for simplicities sake, we will treat the hoverboard controller as a
-// slave unit always - i.e. not ask it to send *unsolicited* messages.
-// in this way, it does not need to wait for ack, etc. from the host.
-// if the host gets a bad message, or no response, it can retry.
-//
-//////////////////////////////////////////////////////////
 
-
-
-///////////////////////////////////////////////
-// extern variables you want to read/write here
-#ifdef CONTROL_SENSOR
-extern SENSOR_DATA sensor_data[2];
-extern int sensor_control;
-extern int sensor_stabilise;
-#endif
-
-#ifdef FLASH_STORAGE
-// from main.c
-extern void change_PID_constants();
-extern void init_PID_control();
-#endif
+//////////////////////////////////////////////
+// variables you want to read/write here. Only common used ones, specific ones below.
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
-extern int dspeeds[2];
-extern int pwms[2];
 
-extern uint8_t debug_out;
-extern uint8_t disablepoweroff;
-extern int powerofftimer;
-extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
-extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
-extern uint16_t buzzerLen;
-extern uint8_t enablescope; // enable scope on values
-
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
-    extern volatile ELECTRICAL_PARAMS electrical_measurements;
-#endif
-///////////////////////////////////////////////
+// gather two separate speed variables togther,
+typedef struct tag_SPEEDS{
+    int speedl;
+    int speedr;
+} SPEEDS;
+static SPEEDS speedsx = {0,0};
 
 
-/////////////////////////////////////////////////////////////
+//////////////////////////////////////////////
 // specify where to send data out of with a function pointer.
 
 #ifdef SOFTWARE_SERIAL
+#include "softwareserial.h"
 
 PROTOCOL_STAT sSoftwareSerial = {
     .send_serial_data=softwareserial_Send,
@@ -192,41 +111,52 @@ PROTOCOL_STAT sUSART3 = {
 };
 
 #endif
-/////////////////////////////////////////////////////////////
-
-extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
 
 
-//////////////////////////////////////////////
-// variables and functions in support of parameters here
-//
+////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x00 version
 
-// e.g. to gather two separate speed variables togther,
-typedef struct tag_SPEEDS{
-    int speedl;
-    int speedr;
-} SPEEDS;
-static SPEEDS speedsx = {0,0};
+static int version = 1;
 
-// after write we call this...
-void PostWrite_setbuzzer(void){
-    buzzerFreq      = BuzzerData.buzzerFreq;
-    buzzerLen       = BuzzerData.buzzerLen;
-    buzzerPattern   = BuzzerData.buzzerPattern;
+#ifdef FLASH_STORAGE
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x80 to 0xA0 FlashContent
+
+// from main.c
+extern void change_PID_constants();
+extern void init_PID_control();
+
+#ifndef SKIP_ELECTRICAL_MEASUREMENTS
+    extern volatile ELECTRICAL_PARAMS electrical_measurements;
+#endif
+
+void PostWrite_writeflash(){
+    if (FlashContent.magic != CURRENT_MAGIC){
+        char temp[128];
+        sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
+        consoleLog(temp);
+        FlashContent.magic = CURRENT_MAGIC;
+        return;
+    }
+    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
+    consoleLog("wrote flash\r\n");
 }
 
-// before read we call this...
-void PreRead_getbuzzer(void){
-    BuzzerData.buzzerFreq       = buzzerFreq;
-    BuzzerData.buzzerLen        = buzzerLen;
-    BuzzerData.buzzerPattern    = buzzerPattern;
+void PostWrite_PID(){
+    change_PID_constants();
 }
 
-// before read we call this...
-void PreRead_getspeeds(void){
-    speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
-    speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
+void PostWrite_Cur_Limit(){
+    electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
 }
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x09 enable
+
+/* see above, writes directly to extern enable */
 
 //////////////////////////////////////////////
 // make values safe before we change enable...
@@ -253,6 +183,36 @@ void PreWrite_enable() {
     }
 }
 
+#ifdef CONTROL_SENSOR
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x01 sensor_data
+
+extern SENSOR_DATA sensor_data[2];
+#endif
+
+#ifdef HALL_INTERRUPTS
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x02 HallData
+
+/* see hallinterrupts.h */
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x03 SpeedData
+
+SPEED_DATA SpeedData = {
+    {0, 0},
+
+    600, // max power (PWM)
+    -600,  // min power
+    40 // minimum mm/s which we can ask for
+};
+
+
+void PreRead_getspeeds(void){
+    speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
+    speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
+}
 
 void PreWrite_setspeeds(void){
     PreWrite_enable();
@@ -261,13 +221,97 @@ void PreWrite_setspeeds(void){
     timeout = 0;
 }
 
+#ifdef HALL_INTERRUPTS
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x04 Position
 
-// after write we call this...
-void PostWrite_setspeeds(void){
-    // SpeedData.wanted_speed_mm_per_sec[0] = speedsx.speedl;
-    // SpeedData.wanted_speed_mm_per_sec[1] = speedsx.speedr;
+POSN Position;
+
+void PreRead_getposnupdate(){
+    Position.LeftAbsolute = HallData[0].HallPosn_mm;
+    Position.LeftOffset = HallData[0].HallPosn_mm - HallData[0].HallPosn_mm_lastread;
+    Position.RightAbsolute = HallData[1].HallPosn_mm;
+    Position.RightOffset = HallData[1].HallPosn_mm - HallData[1].HallPosn_mm_lastread;
 }
 
+void PostWrite_setposnupdate(){
+    HallData[0].HallPosn_mm_lastread = Position.LeftAbsolute;
+    HallData[1].HallPosn_mm_lastread = Position.RightAbsolute;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x05 PositionIncr
+
+POSN_INCR PositionIncr;
+
+void PostWrite_incrementposition(){
+    // if switching to control type POSITION,
+    if ((control_type != CONTROL_TYPE_POSITION) || !enable) {
+        control_type = CONTROL_TYPE_POSITION;
+        // then make sure we won't rush off somwehere strange
+        // by setting our wanted posn to where we currently are...
+        PreWrite_enable();
+    }
+
+    enable = 1;
+    timeout = 0;
+
+    // increment our wanted position
+    PosnData.wanted_posn_mm[0] += PositionIncr.Left;
+    PosnData.wanted_posn_mm[1] += PositionIncr.Right;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x06 PosnData
+
+POSN_DATA PosnData = {
+    {0, 0},
+
+    200, // max pwm in posn mode
+    70, // min pwm in posn mode
+};
+
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x07 RawPosition
+
+POSN RawPosition;
+
+void PreRead_getrawposnupdate(){
+    RawPosition.LeftAbsolute = HallData[0].HallPosn;
+    RawPosition.LeftOffset = HallData[0].HallPosn - HallData[0].HallPosn_lastread;
+    RawPosition.RightAbsolute = HallData[1].HallPosn;
+    RawPosition.RightOffset = HallData[1].HallPosn - HallData[1].HallPosn_lastread;
+}
+
+void PostWrite_setrawposnupdate(){
+    HallData[0].HallPosn_lastread = RawPosition.LeftAbsolute;
+    HallData[1].HallPosn_lastread = RawPosition.RightAbsolute;
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x0A disablepoweroff
+
+extern uint8_t disablepoweroff;
+
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x0B debug_out
+
+extern uint8_t debug_out;
+
+#ifndef EXCLUDE_DEADRECKONER
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x0C xytPosn
+
+// ded reckoning posn
+extern INTEGER_XYT_POSN xytPosn;
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x0D PWMData and 0x0E PWMData.pwm
 
 PWM_DATA PWMData = {
     .pwm[0] = 0,
@@ -276,6 +320,8 @@ PWM_DATA PWMData = {
     .speed_min_power = -600,
     .speed_minimum_pwm = 40 // guard value, below this set to zero
 };
+
+extern int pwms[2];
 
 void PreWrite_setpwms(void){
     PreWrite_enable();
@@ -302,84 +348,32 @@ void PostWrite_setpwms() {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x21 BuzzerData
 
+BUZZER_DATA BuzzerData = {
+    .buzzerFreq = 0,
+    .buzzerPattern = 0,
+    .buzzerLen = 0,
+};
 
+extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1, 2, 3, 4, 5, 6, 7...
+extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
+extern uint16_t buzzerLen;
 
-#ifdef HALL_INTERRUPTS
-POSN Position;
-POSN RawPosition;
-
-void PreRead_getposnupdate(){
-    Position.LeftAbsolute = HallData[0].HallPosn_mm;
-    Position.LeftOffset = HallData[0].HallPosn_mm - HallData[0].HallPosn_mm_lastread;
-    Position.RightAbsolute = HallData[1].HallPosn_mm;
-    Position.RightOffset = HallData[1].HallPosn_mm - HallData[1].HallPosn_mm_lastread;
+void PostWrite_setbuzzer(void){
+    buzzerFreq      = BuzzerData.buzzerFreq;
+    buzzerLen       = BuzzerData.buzzerLen;
+    buzzerPattern   = BuzzerData.buzzerPattern;
 }
 
-void PostWrite_setposnupdate(){
-    HallData[0].HallPosn_mm_lastread = Position.LeftAbsolute;
-    HallData[1].HallPosn_mm_lastread = Position.RightAbsolute;
-}
-
-void PreRead_getrawposnupdate(){
-    RawPosition.LeftAbsolute = HallData[0].HallPosn;
-    RawPosition.LeftOffset = HallData[0].HallPosn - HallData[0].HallPosn_lastread;
-    RawPosition.RightAbsolute = HallData[1].HallPosn;
-    RawPosition.RightOffset = HallData[1].HallPosn - HallData[1].HallPosn_lastread;
-}
-
-void PostWrite_setrawposnupdate(){
-    HallData[0].HallPosn_lastread = RawPosition.LeftAbsolute;
-    HallData[1].HallPosn_lastread = RawPosition.RightAbsolute;
+void PreRead_getbuzzer(void){
+    BuzzerData.buzzerFreq       = buzzerFreq;
+    BuzzerData.buzzerLen        = buzzerLen;
+    BuzzerData.buzzerPattern    = buzzerPattern;
 }
 
 
-POSN_INCR PositionIncr;
-
-void PostWrite_incrementposition(){
-    // if switching to control type POSITION,
-    if ((control_type != CONTROL_TYPE_POSITION) || !enable) {
-        control_type = CONTROL_TYPE_POSITION;
-        // then make sure we won't rush off somwehere strange
-        // by setting our wanted posn to where we currently are...
-        PreWrite_enable();
-    }
-
-    enable = 1;
-    timeout = 0;
-
-    // increment our wanted position
-    PosnData.wanted_posn_mm[0] += PositionIncr.Left;
-    PosnData.wanted_posn_mm[1] += PositionIncr.Right;
-}
-
-#endif
-
-#ifdef FLASH_STORAGE
-
-void PostWrite_writeflash(){
-    if (FlashContent.magic != CURRENT_MAGIC){
-        char temp[128];
-        sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
-        consoleLog(temp);
-        FlashContent.magic = CURRENT_MAGIC;
-        return;
-    }
-    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-    consoleLog("wrote flash\r\n");
-}
-
-void PostWrite_PID(){
-    change_PID_constants();
-}
-
-void PostWrite_Cur_Limit(){
-    electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
-}
-#endif
-
-
-static int version = 1;
 
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
@@ -390,7 +384,7 @@ PARAMSTAT params[] = {
 #ifdef HALL_INTERRUPTS
     { 0x02, NULL, NULL, UI_NONE, (void *)&HallData, sizeof(HallData),        PARAM_R,  NULL,                     NULL, NULL,               NULL,                        NULL },
 #endif
-    { 0x03, NULL, NULL, UI_NONE, &SpeedData,        sizeof(SpeedData),       PARAM_RW, PreRead_getspeeds,        NULL, PreWrite_setspeeds, PostWrite_setspeeds,         NULL },
+    { 0x03, NULL, NULL, UI_NONE, &SpeedData,        sizeof(SpeedData),       PARAM_RW, PreRead_getspeeds,        NULL, PreWrite_setspeeds, NULL,                        NULL },
 #ifdef HALL_INTERRUPTS
     { 0x04, NULL, NULL, UI_NONE, &Position,         sizeof(Position),        PARAM_RW, PreRead_getposnupdate,    NULL, NULL,               PostWrite_setposnupdate,     NULL },
     { 0x05, NULL, NULL, UI_NONE, &PositionIncr,     sizeof(PositionIncr),    PARAM_RW, NULL,                     NULL, NULL,               PostWrite_incrementposition, NULL },
@@ -403,8 +397,8 @@ PARAMSTAT params[] = {
 #ifndef EXCLUDE_DEADRECKONER
     { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL,                        NULL },
 #endif
-    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           NULL },
-    { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           NULL },
+    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
+    { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
     { 0x21, NULL, NULL, UI_NONE, &BuzzerData,       sizeof(BuzzerData),      PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer,         NULL },
 
 #ifdef FLASH_STORAGE
