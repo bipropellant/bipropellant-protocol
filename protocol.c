@@ -119,6 +119,40 @@ PROTOCOL_STAT sUSART3 = {
 
 static int version = 1;
 
+#ifdef FLASH_STORAGE
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x80 to 0xA0 FlashContent
+
+// from main.c
+extern void change_PID_constants();
+extern void init_PID_control();
+
+#ifndef SKIP_ELECTRICAL_MEASUREMENTS
+    extern volatile ELECTRICAL_PARAMS electrical_measurements;
+#endif
+
+void PostWrite_writeflash(){
+    if (FlashContent.magic != CURRENT_MAGIC){
+        char temp[128];
+        sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
+        consoleLog(temp);
+        FlashContent.magic = CURRENT_MAGIC;
+        return;
+    }
+    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
+    consoleLog("wrote flash\r\n");
+}
+
+void PostWrite_PID(){
+    change_PID_constants();
+}
+
+void PostWrite_Cur_Limit(){
+    electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
+}
+
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x09 enable
 
@@ -339,41 +373,6 @@ void PreRead_getbuzzer(void){
     BuzzerData.buzzerPattern    = buzzerPattern;
 }
 
-
-
-#ifdef FLASH_STORAGE
-////////////////////////////////////////////////////////////////////////////////////////////
-// Variable & Functions for 0x80 to 0xA0 FlashContent
-
-// from main.c
-extern void change_PID_constants();
-extern void init_PID_control();
-
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
-    extern volatile ELECTRICAL_PARAMS electrical_measurements;
-#endif
-
-void PostWrite_writeflash(){
-    if (FlashContent.magic != CURRENT_MAGIC){
-        char temp[128];
-        sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
-        consoleLog(temp);
-        FlashContent.magic = CURRENT_MAGIC;
-        return;
-    }
-    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-    consoleLog("wrote flash\r\n");
-}
-
-void PostWrite_PID(){
-    change_PID_constants();
-}
-
-void PostWrite_Cur_Limit(){
-    electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
-}
-
-#endif
 
 
 // NOTE: Don't start uistr with 'a'
