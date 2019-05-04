@@ -155,6 +155,14 @@ typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
 
 //////////////////////////////////////////////////////////
 
+typedef struct tag_SUBSCRIBEDATA {
+    unsigned char code;     // code in protocol to refer to this
+    unsigned int period;    // how often should the information be sent?
+    int count;              // how many messages shall be sent? -1 for infinity
+    char som;               // which SOM shall be used? with or without ACK
+} SUBSCRIBEDATA;
+
+
 
 typedef struct tag_PROTOCOL_STAT {
     char allow_ascii;                     // If set to 0, ascii protocol is not used
@@ -189,6 +197,8 @@ typedef struct tag_PROTOCOL_STAT {
     MACHINE_PROTOCOL_TX_BUFFER TxBufferACK;    // Buffer for Messages with ACK to be sent
     MACHINE_PROTOCOL_TX_BUFFER TxBufferNoACK;  // Buffer for Messages without ACK to be sent
 
+    SUBSCRIBEDATA subscriptions[10];           // Subscriptions to periodic messages
+
 } PROTOCOL_STAT;
 
 #pragma pack(pop)
@@ -212,12 +222,14 @@ typedef struct tag_PARAMSTAT {
     char len;               // length of value
     char rw;                // PARAM_R or PARAM_RW
 
-    void (*preread)(void);                // function to call before read
-    void (*postread)(void);               // function to call after read
-    void (*prewrite)(void);               // function to call before write
-    void (*postwrite)(void);              // function to call after write
-    void (*receivedread)(void);           // function to call after requested data was received
+    void (*preread)(PROTOCOL_STAT *s);                // function to call before read
+    void (*postread)(PROTOCOL_STAT *s);               // function to call after read
+    void (*prewrite)(PROTOCOL_STAT *s);               // function to call before write
+    void (*postwrite)(PROTOCOL_STAT *s);              // function to call after write
+    void (*receivedread)(PROTOCOL_STAT *s);           // function to call after requested data was received
 } PARAMSTAT;
+
+
 #pragma pack(pop)
 
 
@@ -243,6 +255,8 @@ typedef struct tag_PARAMSTAT {
 //
 /////////////////////////////////////////////////////////////////
 
+#pragma pack(push, 1)
+
 typedef struct tag_POSN {
     long LeftAbsolute;
     long RightAbsolute;
@@ -255,6 +269,8 @@ typedef struct tag_POSN_INCR {
     long Right;
 } POSN_INCR;
 extern int enable_immediate;
+#pragma pack(pop)
+
 
 extern PROTOCOL_STAT sUSART2;
 extern PROTOCOL_STAT sUSART3;
