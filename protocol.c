@@ -56,10 +56,17 @@ int control_type = 0;
 
 
 //////////////////////////////////////////////
-// extern variables you want to read/write here. Only common used ones, specific ones below.
+// variables you want to read/write here. Only common used ones, specific ones below.
 
 extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
+
+// gather two separate speed variables togther,
+typedef struct tag_SPEEDS{
+    int speedl;
+    int speedr;
+} SPEEDS;
+static SPEEDS speedsx = {0,0};
 
 
 //////////////////////////////////////////////
@@ -112,6 +119,36 @@ PROTOCOL_STAT sUSART3 = {
 
 static int version = 1;
 
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x09 enable
+
+/* see above, writes directly to extern enable */
+
+//////////////////////////////////////////////
+// make values safe before we change enable...
+void PreWrite_enable() {
+    if (!enable) {
+#ifdef HALL_INTERRUPTS
+        // assume we will enable,
+        // set wanted posn to current posn, else we may rush into a wall
+        PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+        PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+#endif
+
+        // clear speeds to zero
+        SpeedData.wanted_speed_mm_per_sec[0] = 0;
+        SpeedData.wanted_speed_mm_per_sec[1] = 0;
+        speedsx.speedl = 0;
+        speedsx.speedr = 0;
+        PWMData.pwm[0] = 0;
+        PWMData.pwm[1] = 0;
+#ifdef FLASH_STORAGE
+        init_PID_control();
+#endif
+
+    }
+}
+
 #ifdef CONTROL_SENSOR
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x01 sensor_data
@@ -137,12 +174,6 @@ SPEED_DATA SpeedData = {
     40 // minimum mm/s which we can ask for
 };
 
-// e.g. to gather two separate speed variables togther,
-typedef struct tag_SPEEDS{
-    int speedl;
-    int speedr;
-} SPEEDS;
-static SPEEDS speedsx = {0,0};
 
 void PreRead_getspeeds(void){
     speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
@@ -225,36 +256,6 @@ void PostWrite_setrawposnupdate(){
 }
 
 #endif
-
-////////////////////////////////////////////////////////////////////////////////////////////
-// Variable & Functions for 0x09 enable
-
-/* see above, writes directly to extern enable */
-
-//////////////////////////////////////////////
-// make values safe before we change enable...
-void PreWrite_enable() {
-    if (!enable) {
-#ifdef HALL_INTERRUPTS
-        // assume we will enable,
-        // set wanted posn to current posn, else we may rush into a wall
-        PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
-        PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
-#endif
-
-        // clear speeds to zero
-        SpeedData.wanted_speed_mm_per_sec[0] = 0;
-        SpeedData.wanted_speed_mm_per_sec[1] = 0;
-        speedsx.speedl = 0;
-        speedsx.speedr = 0;
-        PWMData.pwm[0] = 0;
-        PWMData.pwm[1] = 0;
-#ifdef FLASH_STORAGE
-        init_PID_control();
-#endif
-
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x0A disablepoweroff
