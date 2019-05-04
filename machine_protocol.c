@@ -21,7 +21,7 @@
 * usage:
 * call void protocol_byte( unsigned char byte ); with incoming bytes from main.call
 * will call protocol_process_message when message received (protocol.c)
-* call protocol_post(PROTOCOL_LEN_ONWARDS *) to send a message
+* call protocol_post to send a message
 */
 
 #include "stm32f1xx_hal.h"
@@ -69,15 +69,15 @@ static void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value);
 #define PROTOCOL_STATE_WAIT_END 3
 #define PROTOCOL_STATE_BADCHAR 4
 
-#define PROTOCOL_TX_IDLE 0
-#define PROTOCOL_TX_WAITING 1
+#define PROTOCOL_ACK_TX_IDLE 0
+#define PROTOCOL_ACK_TX_WAITING 1
 
 
 
 // private to us
 static void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI);
 static void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI);
-static int protocol_send(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes);
+static int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
 static void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), PROTOCOL_MSG2 *msg);
 
 int nosend( unsigned char *data, int len ){ return 0; };
@@ -91,6 +91,7 @@ void protocol_init(PROTOCOL_STAT *s){
     s->timeout2 = 100;
     s->allow_ascii = 1;
     s->send_serial_data = nosend;
+    s->send_serial_data_wait = nosend;
 }
 
 // called from main.c
@@ -100,7 +101,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
     switch(s->state){
         case PROTOCOL_STATE_BADCHAR:
         case PROTOCOL_STATE_IDLE:
-            if (byte == PROTOCOL_SOM){
+            if ((byte == PROTOCOL_SOM_ACK) || (byte == PROTOCOL_SOM_NOACK)){
                 s->curr_msg.SOM = byte;
                 s->last_char_time = HAL_GetTick();
                 s->state = PROTOCOL_STATE_WAIT_CI;
@@ -141,10 +142,10 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                 s->last_char_time = 0;
                 switch(s->curr_msg.bytes[0]){
                     case PROTOCOL_CMD_ACK:
-                        if (s->send_state == PROTOCOL_TX_WAITING){
-                            if (s->curr_msg.CI == s->curr_send_msg.CI){
+                        if (s->send_state == PROTOCOL_ACK_TX_WAITING){
+                            if (s->curr_msg.CI == s->curr_send_msg_withAck.CI){
                                 s->last_send_time = 0;
-                                s->send_state = PROTOCOL_TX_IDLE;
+                                s->send_state = PROTOCOL_ACK_TX_IDLE;
                                 // if we got ack, then try to send a next message
                                 int txcount = mpTxQueued(&s->TxBufferACK);
                                 if (txcount){
@@ -165,14 +166,14 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                         break;
                     case PROTOCOL_CMD_NACK:
                         // 'If an end receives a NACK, it should resend the last message with the same CI, up to 2 retries'
-                        if (s->send_state == PROTOCOL_TX_WAITING){
+                        if (s->send_state == PROTOCOL_ACK_TX_WAITING){
                             // ignore CI
                             if (s->retries > 0){
-                                protocol_send_raw(s->send_serial_data, &s->curr_send_msg);
+                                protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
                                 s->last_send_time = HAL_GetTick();
                                 s->retries--;
                             } else {
-                                s->send_state = PROTOCOL_TX_IDLE;
+                                s->send_state = PROTOCOL_ACK_TX_IDLE;
                                 // if we run out of retries, then try to send a next message
                                 int txcount = mpTxQueued(&s->TxBufferACK);
                                 if (txcount){
@@ -190,11 +191,12 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                         if (s->CS != 0){
                             protocol_send_nack(s->send_serial_data, s->curr_msg.CI);
                         } else {
-                            protocol_send_ack(s->send_serial_data, s->curr_msg.CI);
+                            if(s->curr_msg.SOM == PROTOCOL_SOM_ACK){
+                                protocol_send_ack(s->send_serial_data, s->curr_msg.CI);
+                            }
                             // 'if a message is received with the same CI as the last received message, ACK will be sent, but the message discarded.'
                             if (s->lastRXCI != s->curr_msg.CI){
-                                // protocol_process_message now takes len onwards
-                                protocol_process_message(s, (PROTOCOL_LEN_ONWARDS*)(&(s->curr_msg.len)));
+                                protocol_process_message(s, &(s->curr_msg));
                             }
                             s->lastRXCI = s->curr_msg.CI;
                         }
@@ -209,13 +211,13 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
 
 // private
 void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI){
-    char tmp[] = { PROTOCOL_SOM, CI, 1, PROTOCOL_CMD_NACK, 0 };
+    char tmp[] = { PROTOCOL_SOM_NOACK, CI, 1, PROTOCOL_CMD_NACK, 0 };
     protocol_send_raw(send_serial_data, (PROTOCOL_MSG2 *)tmp);
 }
 
 // private
 void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI){
-    char tmp[] = { PROTOCOL_SOM, CI, 1, PROTOCOL_CMD_ACK, 0 };
+    char tmp[] = { PROTOCOL_SOM_NOACK, CI, 1, PROTOCOL_CMD_ACK, 0 };
     protocol_send_raw(send_serial_data, (PROTOCOL_MSG2 *)tmp);
 }
 
@@ -226,58 +228,94 @@ void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), 
 //  -1 - cannot even queue
 //  0 sent immediately
 //  1 queued for later TX
-int protocol_post(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes){
-    int txcount = mpTxQueued(&s->TxBufferACK);
-    if ((s->send_state != PROTOCOL_TX_WAITING) && !txcount){
+int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
 
-        return protocol_send(s, len_bytes);
+
+    if(msg->SOM == PROTOCOL_SOM_ACK) {
+        int txcount = mpTxQueued(&s->TxBufferACK);
+        if ((s->send_state != PROTOCOL_ACK_TX_WAITING) && !txcount){
+
+            return protocol_send(s, msg);
+        }
+
+        // add to tx queue
+        int total = msg->len + 1; // +1 len
+
+        if (txcount + total >= MACHINE_PROTOCOL_TX_BUFFER_SIZE-2) {
+            s->TxBufferACK.overflow++;
+            return -1;
+        }
+
+        char *src = (char *) &(msg->len);
+        for (int i = 0; i < total; i++) {
+            mpPutTx(&s->TxBufferACK, *(src++));
+        }
+
+        return 1; // added to queue
+
+    } else if(msg->SOM == PROTOCOL_SOM_NOACK) {
+        return protocol_send(s, msg);
     }
-
-    // add to tx queue
-    int total = len_bytes->len + 1; // +1 len
-
-    if (txcount + total >= MACHINE_PROTOCOL_TX_BUFFER_SIZE-2) {
-        s->TxBufferACK.overflow++;
-        return -1;
-    }
-
-    char *src = (char *) len_bytes;
-    for (int i = 0; i < total; i++) {
-        mpPutTx(&s->TxBufferACK, *(src++));
-    }
-
-    return 1; // added to queue
+    return -1;
 }
 
 
 // private
-// note: if NULL in, send from queue
-int protocol_send(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes){
-    if (s->send_state == PROTOCOL_TX_WAITING){
-        // 'If an end sends a message, it should not send another until an ACK has been received or all retries sent'
-        return -1;
-    }
-    unsigned char CI = s->curr_send_msg.CI+1;
-    // if message input
-    if (len_bytes) {
-        s->curr_send_msg.SOM = PROTOCOL_SOM;
-        s->curr_send_msg.CI = CI;
-        memcpy(&s->curr_send_msg.len, len_bytes, len_bytes->len + 1);
-    } else {
-        // else try to send from queue
-        int ismsg = mpGetTxMsg(&s->TxBufferACK, &s->curr_send_msg.len);
-        if (ismsg){
-            s->curr_send_msg.SOM = PROTOCOL_SOM;
-            s->curr_send_msg.CI = CI;
+// note: if NULL in, send one message from queue
+int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
+    if(msg) {
+        if(msg->SOM == PROTOCOL_SOM_ACK && s->send_state == PROTOCOL_ACK_TX_WAITING) {
+            // Tried to Send Message which requires ACK, but a message is still pending.
+            return -1;
+
+        } else if(msg->SOM == PROTOCOL_SOM_ACK && s->send_state == PROTOCOL_ACK_TX_IDLE) {
+            // Idling (not waiting for ACK), send the Message directly
+            memcpy(&s->curr_send_msg_withAck, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
+            s->curr_send_msg_withAck.CI = ++(s->lastTXCI);
+            protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
+            s->send_state = PROTOCOL_ACK_TX_WAITING;
+            s->last_send_time = HAL_GetTick();
+            s->retries = 2;
+            return 0;
+
+        } else if (msg->SOM == PROTOCOL_SOM_NOACK) {
+            // Send Message without ACK immediately
+            memcpy(&s->curr_send_msg_noAck, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
+            s->curr_send_msg_noAck.CI = ++(s->lastTXCI);
+            protocol_send_raw(s->send_serial_data, &s->curr_send_msg_noAck);
+            return 0;
+
         } else {
-            return -1; // nothing to send
+            // Shouldn't happen, unknowm SOM
+            return -1;
+        }
+    } else {
+        // No Message was given, work on Buffers then..
+
+        if(s->send_state == PROTOCOL_STATE_IDLE && mpTxQueued(&s->TxBufferACK)) {
+            // Make sure we are not waiting for another ACK. Check if There is something in the buffer.
+            mpGetTxMsg(&s->TxBufferACK, &s->curr_send_msg_withAck.len);
+            s->curr_send_msg_withAck.SOM = PROTOCOL_SOM_ACK;
+            s->curr_send_msg_withAck.CI = ++(s->lastTXCI);
+            protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
+            s->send_state = PROTOCOL_ACK_TX_WAITING;
+            s->last_send_time = HAL_GetTick();
+            s->retries = 2;
+            return 0;
+
+        } else {
+            // Do the other queue
+            int ismsg = mpGetTxMsg(&s->TxBufferNoACK, &s->curr_send_msg_noAck.len);
+            if (ismsg){
+                // Queue has message waiting
+                s->curr_send_msg_noAck.SOM = PROTOCOL_SOM_NOACK;
+                s->curr_send_msg_noAck.CI = ++(s->lastTXCI);
+                protocol_send_raw(s->send_serial_data, &s->curr_send_msg_noAck);
+                return 0;
+            }
         }
     }
-    protocol_send_raw(s->send_serial_data, &s->curr_send_msg);
-    s->send_state = PROTOCOL_TX_WAITING;
-    s->last_send_time = HAL_GetTick();
-    s->retries = 2;
-    return 0;
+    return -1; // nothing to send
 }
 
 
@@ -300,35 +338,24 @@ void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), 
 // externed from protocol.h
 void protocol_tick(PROTOCOL_STAT *s){
     s->last_tick_time = HAL_GetTick();
-    switch(s->send_state){
-        case PROTOCOL_TX_IDLE:{
-                int txcount = mpTxQueued(&s->TxBufferACK);
-                if (txcount){
-                    // send from tx queue
-                    protocol_send(s, NULL);
-                }
+
+
+    if(s->send_state == PROTOCOL_ACK_TX_WAITING) {
+        if ((s->last_tick_time - s->last_send_time) > s->timeout1){
+            // 'If an end does not receive an ACK response within (TIMEOUT1), it should resend the last message with the same CI, up to 2 retries'
+            if (s->retries > 0){
+                protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
+                s->last_send_time = HAL_GetTick();
+                s->retries--;
+            } else {
+                // if we run out of retries, then try to send a next message
+                s->send_state = PROTOCOL_ACK_TX_IDLE;
             }
-            break;
-        case PROTOCOL_TX_WAITING:
-            if ((s->last_tick_time - s->last_send_time) > s->timeout1){
-                // 'If an end does not receive an ACK response within (TIMEOUT1), it should resend the last message with the same CI, up to 2 retries'
-                if (s->retries > 0){
-                    protocol_send_raw(s->send_serial_data, &s->curr_send_msg);
-                    s->last_send_time = HAL_GetTick();
-                    s->retries--;
-                } else {
-                    s->send_state = PROTOCOL_TX_IDLE;
-                    // if we run out of retries, then try to send a next message
-                    int txcount = mpTxQueued(&s->TxBufferACK);
-                    if (txcount){
-                        // send from tx queue
-                        protocol_send(s, NULL);
-                    }
-                }
-            }
-            break;
+        }
     }
 
+    // send from tx queue
+    protocol_send(s, NULL);
 
     switch(s->state){
         case PROTOCOL_STATE_IDLE:

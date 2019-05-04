@@ -109,13 +109,13 @@ typedef struct tag_PROTOCOL_MSG2 {
 
 typedef struct tag_PROTOCOL_LEN_ONWARDS {
     unsigned char len; // len is len of ALL bytes to follow, including CS
-    unsigned char bytes[253];  // variable number of data bytes, with a checksum on the end, cmd is first
+    unsigned char bytes[255];  // variable number of data bytes, with a checksum on the end, cmd is first
 } PROTOCOL_LEN_ONWARDS;
 
 // content of 'bytes' above, for single byte commands
 typedef struct tag_PROTOCOL_BYTES {
     unsigned char cmd; //
-    unsigned char bytes[252];
+    unsigned char bytes[254];
 } PROTOCOL_BYTES;
 
 
@@ -138,7 +138,7 @@ typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
 
 
 //////////////////////////////////////////////////////////////////
-// protocol_post() uses this structure to store outgoing messages
+// protocol_post uses this structure to store outgoing messages
 // until they can be sent.
 // messages are stored only as len|data
 // SOM, CI, and CS are not included.
@@ -157,34 +157,37 @@ typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
 
 
 typedef struct tag_PROTOCOL_STAT {
-    char allow_ascii;
-    unsigned long last_send_time;
-    unsigned long last_tick_time;
+    char allow_ascii;                     // If set to 0, ascii protocol is not used
+    unsigned long last_send_time;         // last time a message requiring an ACK was sent
+    unsigned long last_tick_time;         // last time the tick function was called
 
-    char state;
-    unsigned long last_char_time;
-    unsigned char CS;
-    unsigned char count;
-    unsigned int nonsync;
-    PROTOCOL_MSG2 curr_msg;
-    unsigned char lastRXCI;
+    char state;                           // state used in protocol_byte to receive packages
+    unsigned long last_char_time;         // last time a character was received
+    unsigned char CS;                     // temporary storage to calculate Checksum
+    unsigned char count;                  // index pointing to last received byte
+    unsigned int nonsync;                 // not used?
+    PROTOCOL_MSG2 curr_msg;               // received message storage
+    unsigned char lastRXCI;               // CI of last received message
 
-    unsigned int unwantedacks;
-    unsigned int unwantednacks;
-    unsigned int unknowncommands;
-    unsigned int unplausibleresponse;
+    unsigned int unwantedacks;            // count of unwated ACK messages
+    unsigned int unwantednacks;           // count of unwanted NACK messges
+    unsigned int unknowncommands;         // count of messages wit unknown commands
+    unsigned int unplausibleresponse;     // count of unplausible replies
 
-    char send_state;
-    PROTOCOL_MSG2 curr_send_msg;
-    char retries;
+    char send_state;                      // message transmission state
+    PROTOCOL_MSG2 curr_send_msg_withAck;  // transmit message storage (for messages with ACK)
+    PROTOCOL_MSG2 curr_send_msg_noAck;    // transmit message storage (for messages without ACK)
+    char retries;                         // number of retries left to send message
+    unsigned char lastTXCI;               // CI of last sent message
 
-    int timeout1;
-    int timeout2;
+    int timeout1;                         // ACK has to be received in this time
+    int timeout2;                         // when receiving a packet, longest time between characters
 
-    int (*send_serial_data)( unsigned char *data, int len );
+    int (*send_serial_data)( unsigned char *data, int len );       // Function Pointer to sending function
     int (*send_serial_data_wait)( unsigned char *data, int len );
 
-    MACHINE_PROTOCOL_TX_BUFFER TxBufferACK;  // Buffer for Messages to be sent
+    MACHINE_PROTOCOL_TX_BUFFER TxBufferACK;    // Buffer for Messages with ACK to be sent
+    MACHINE_PROTOCOL_TX_BUFFER TxBufferNoACK;  // Buffer for Messages without ACK to be sent
 
 } PROTOCOL_STAT;
 
@@ -235,7 +238,8 @@ typedef struct tag_PARAMSTAT {
 // response to an unkonwn command - maybe payload
 #define PROTOCOL_CMD_UNKNOWN '?'
 
-#define PROTOCOL_SOM 2
+#define PROTOCOL_SOM_ACK 2
+#define PROTOCOL_SOM_NOACK 4
 //
 /////////////////////////////////////////////////////////////////
 
@@ -264,7 +268,7 @@ void protocol_tick(PROTOCOL_STAT *s);
 void protocol_init(PROTOCOL_STAT *s);
 /////////////////////////////////////////////////////////////////
 void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
-void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg);
+void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
 int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 
 //////////////////////////////////////////////////////////

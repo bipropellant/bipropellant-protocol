@@ -194,7 +194,7 @@ PROTOCOL_STAT sUSART3 = {
 #endif
 /////////////////////////////////////////////////////////////
 
-extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *len_bytes);
+extern int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
 
 
 //////////////////////////////////////////////
@@ -431,7 +431,7 @@ int paramcount = sizeof(params)/sizeof(params[0]);
 /////////////////////////////////////////////
 // a complete machineprotocl message has been
 // received without error
-void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_LEN_ONWARDS *msg){
+void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
     PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
     switch (writevals->cmd){
