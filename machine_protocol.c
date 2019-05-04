@@ -198,6 +198,11 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                             if (s->lastRXCI != s->curr_msg.CI){
                                 protocol_process_message(s, &(s->curr_msg));
                             }
+                            if( s->curr_msg.CI < s->lastRXCI) {
+                                s->missingRXmessages -= 1;
+                            } else {
+                                s->missingRXmessages += s->curr_msg.CI - (s->lastRXCI + 1);
+                            }
                             s->lastRXCI = s->curr_msg.CI;
                         }
                         break;
@@ -382,6 +387,45 @@ void protocol_tick(PROTOCOL_STAT *s){
             }
             break;
     }
+
+
+    // process subscriptions
+    int len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
+    int index = 0;
+
+    // Check if subscription exists.
+    for (index = 0; index < len; index++) {
+        if( s->subscriptions[index].code != 0 && s->subscriptions[index].count != 0 ) {
+
+            // Check if message is due
+            if( s->subscriptions[index].next_send_time <= s->last_tick_time) {
+
+                //If so, pretend that a Read request has arrived.
+
+                PROTOCOL_MSG2 newMsg;
+                memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG2));
+                PROTOCOL_BYTES_READVALS *readvals = (PROTOCOL_BYTES_READVALS *) &(newMsg.bytes);
+
+                readvals->cmd  = PROTOCOL_CMD_READVAL;
+                readvals->code = s->subscriptions[index].code;
+                newMsg.SOM = s->subscriptions[index].som;
+                newMsg.len = sizeof(readvals->cmd) + sizeof(readvals->code) + 1; // 1 for Checksum
+
+                protocol_process_message(s, &newMsg);
+
+
+                //reschedule job
+                s->subscriptions[index].next_send_time = s->last_tick_time + s->subscriptions[index].period;
+                if(s->subscriptions[index].count > 0) {
+                    s->subscriptions[index].count = s->subscriptions[index].count - 1;
+                }
+
+            }
+
+
+        }
+    }
+
 }
 
 
