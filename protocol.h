@@ -156,10 +156,12 @@ typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
 //////////////////////////////////////////////////////////
 
 typedef struct tag_SUBSCRIBEDATA {
-    unsigned char code;     // code in protocol to refer to this
-    unsigned int period;    // how often should the information be sent?
-    int count;              // how many messages shall be sent? -1 for infinity
-    char som;               // which SOM shall be used? with or without ACK
+    unsigned char code;              // code in protocol to refer to this
+    unsigned int period;             // how often should the information be sent?
+    int count;                       // how many messages shall be sent? -1 for infinity
+    char som;                        // which SOM shall be used? with or without ACK
+    unsigned long next_send_time;    // last time a message requiring an ACK was sent
+
 } SUBSCRIBEDATA;
 
 

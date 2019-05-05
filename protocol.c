@@ -392,7 +392,7 @@ void PostWrite_setSubscription(PROTOCOL_STAT *s) {
     // If code was not found, look for vacant subscription slot
     if(index == len) {
         for (index = 0; index < len; index++) {
-            if( s->subscriptions[index].code == 0 || s->subscriptions[index].code == 0 ) {
+            if( s->subscriptions[index].code == 0 || s->subscriptions[index].count == 0 ) {
                 break;
             }
         }
