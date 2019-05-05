@@ -330,6 +330,27 @@ void PreWrite_setpwms(PROTOCOL_STAT *s){
     timeout = 0;
 }
 
+void PostReceivedread_setpwms(PROTOCOL_STAT *s) {
+    PreWrite_enable(s);
+    enable = 1;
+    control_type = CONTROL_TYPE_PWM;
+    timeout = 0;
+
+    for (int i = 0; i < 2; i++) {
+        if (PWMData.pwm[i] > PWMData.speed_max_power) {
+            PWMData.pwm[i] = PWMData.speed_max_power;
+        }
+        if (PWMData.pwm[i] < PWMData.speed_min_power) {
+            PWMData.pwm[i] = PWMData.speed_min_power;
+        }
+        if ((PWMData.pwm[i] > 0) && (PWMData.pwm[i] < PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+        if ((PWMData.pwm[i] < 0) && (PWMData.pwm[i] > -PWMData.speed_minimum_pwm)) {
+            PWMData.pwm[i] = 0;
+        }
+    }
+}
 
 void PostWrite_setpwms(PROTOCOL_STAT *s) {
     for (int i = 0; i < 2; i++) {
@@ -429,8 +450,8 @@ PARAMSTAT params[] = {
 #ifndef EXCLUDE_DEADRECKONER
     { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL,                        NULL },
 #endif
-    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
-    { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
+    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
+    { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
     { 0x21, NULL, NULL, UI_NONE, &BuzzerData,       sizeof(BuzzerData),      PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer,         NULL },
     { 0x22, NULL, NULL, UI_NONE, &SubscribeData,    sizeof(SubscribeData),   PARAM_RW, NULL,                     NULL, NULL,               PostWrite_setSubscription,   PostWrite_setSubscription },
 
