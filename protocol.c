@@ -398,8 +398,8 @@ void PostWrite_setSubscription(PROTOCOL_STAT *s) {
         }
     }
 
-    // Fill in new subscription when possible
-    if(index < len) {
+    // Fill in new subscription when possible; Plausibility check for period
+    if(index < len || SubscribeData.period >= 10) {
         s->subscriptions[index] = SubscribeData;
     } else {
         // TODO. Inform sender??
@@ -466,7 +466,7 @@ PARAMSTAT params[] = {
     { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
     { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostWrite_setpwms },
     { 0x21, NULL, NULL, UI_NONE, &BuzzerData,       sizeof(BuzzerData),      PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer,         NULL },
-    { 0x22, NULL, NULL, UI_NONE, &SubscribeData,    sizeof(SubscribeData),   PARAM_RW, NULL,                     NULL, NULL,               PostWrite_setSubscription,   NULL },
+    { 0x22, NULL, NULL, UI_NONE, &SubscribeData,    sizeof(SubscribeData),   PARAM_RW, NULL,                     NULL, NULL,               PostWrite_setSubscription,   PostWrite_setSubscription },
 
 #ifdef FLASH_STORAGE
     { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash, NULL },  // write this with CURRENT_MAGIC to commit to flash

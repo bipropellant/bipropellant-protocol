@@ -198,6 +198,11 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                             if (s->lastRXCI != s->curr_msg.CI){
                                 protocol_process_message(s, &(s->curr_msg));
                             }
+                            if( s->curr_msg.CI < s->lastRXCI) {
+                                s->missingRXmessages -= 1;
+                            } else {
+                                s->missingRXmessages += s->curr_msg.CI - (s->lastRXCI + 1);
+                            }
                             s->lastRXCI = s->curr_msg.CI;
                         }
                         break;

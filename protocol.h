@@ -183,6 +183,7 @@ typedef struct tag_PROTOCOL_STAT {
     unsigned int unwantednacks;           // count of unwanted NACK messges
     unsigned int unknowncommands;         // count of messages wit unknown commands
     unsigned int unplausibleresponse;     // count of unplausible replies
+    unsigned int missingRXmessages;       // count of missing RX messages
 
     char send_state;                      // message transmission state
     PROTOCOL_MSG2 curr_send_msg_withAck;  // transmit message storage (for messages with ACK)
