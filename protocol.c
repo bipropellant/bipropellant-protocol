@@ -406,40 +406,6 @@ void PostWrite_setSubscription(PROTOCOL_STAT *s) {
     }
 }
 
-#ifdef FLASH_STORAGE
-////////////////////////////////////////////////////////////////////////////////////////////
-// Variable & Functions for 0x80 to 0xA0 FlashContent
-
-// from main.c
-extern void change_PID_constants();
-extern void init_PID_control();
-
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
-    extern volatile ELECTRICAL_PARAMS electrical_measurements;
-#endif
-
-void PostWrite_writeflash(PROTOCOL_STAT *s){
-    if (FlashContent.magic != CURRENT_MAGIC){
-        char temp[128];
-        sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
-        consoleLog(temp);
-        FlashContent.magic = CURRENT_MAGIC;
-        return;
-    }
-    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-    consoleLog("wrote flash\r\n");
-}
-
-void PostWrite_PID(PROTOCOL_STAT *s){
-    change_PID_constants();
-}
-
-void PostWrite_Cur_Limit(PROTOCOL_STAT *s){
-    electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
-}
-
-#endif
-
 
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {

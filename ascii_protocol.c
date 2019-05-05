@@ -574,14 +574,14 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                                 switch (params[i].ui_type){
                                     case UI_SHORT:
                                         // read it
-                                        if (params[i].preread) params[i].preread();
+                                        if (params[i].preread) params[i].preread(s);
                                         sprintf(ascii_out, "%s(%s): %d\r\n",
                                                 (params[i].description)?params[i].description:"",
                                                 params[i].uistr,
                                                 (int)*(short *)params[i].ptr);
                                         s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
                                         ascii_out[0] = 0; // don't print last one twice
-                                        if (params[i].postread) params[i].postread();
+                                        if (params[i].postread) params[i].postread(s);
                                         break;
                                     default:
                                         break;
@@ -598,16 +598,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                                         case UI_SHORT:
                                             // if number supplied, write
                                             if ((cmd[1+strlen(params[i].uistr)] >= '0') && (cmd[1+strlen(params[i].uistr)] <= '9')){
-                                                if (params[i].prewrite) params[i].prewrite();
+                                                if (params[i].prewrite) params[i].prewrite(s);
                                                 *((short *)params[i].ptr) = atoi(&cmd[1+strlen(params[i].uistr)]);
-                                                if (params[i].postwrite) params[i].postwrite();
+                                                if (params[i].postwrite) params[i].postwrite(s);
                                                 sprintf(ascii_out, "flash var %s(%s) now %d\r\n",
                                                     (params[i].description)?params[i].description:"",
                                                     params[i].uistr,
                                                     (int)*(short *)params[i].ptr);
                                             } else {
                                                 // read it
-                                                if (params[i].preread) params[i].preread();
+                                                if (params[i].preread) params[i].preread(s);
                                                 sprintf(ascii_out, "%s(%s): %d\r\n",
                                                         (params[i].description)?params[i].description:"",
                                                         params[i].uistr,
@@ -615,7 +615,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                                                 );
                                                 s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
                                                 ascii_out[0] = 0; // don't print last one twice
-                                                if (params[i].postread) params[i].postread();
+                                                if (params[i].postread) params[i].postread(s);
                                             }
                                             break;
                                         default:
