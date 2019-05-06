@@ -177,7 +177,8 @@ typedef struct tag_PROTOCOL_STAT {
     unsigned char count;                  // index pointing to last received byte
     unsigned int nonsync;                 // not used?
     PROTOCOL_MSG2 curr_msg;               // received message storage
-    unsigned char lastRXCI;               // CI of last received message
+    unsigned char lastRXCI_ACK;           // CI of last received message in ACKed stream
+    unsigned char lastRXCI_NOACK;         // CI of last received message in NOACKed stream
 
     unsigned int unwantedacks;            // count of unwated ACK messages
     unsigned int unwantednacks;           // count of unwanted NACK messges
@@ -189,7 +190,8 @@ typedef struct tag_PROTOCOL_STAT {
     PROTOCOL_MSG2 curr_send_msg_withAck;  // transmit message storage (for messages with ACK)
     PROTOCOL_MSG2 curr_send_msg_noAck;    // transmit message storage (for messages without ACK)
     char retries;                         // number of retries left to send message
-    unsigned char lastTXCI;               // CI of last sent message
+    unsigned char lastTXCI_ACK;           // CI of last sent message in ACKed stream
+    unsigned char lastTXCI_NOACK;         // CI of last sent message in NOACKed stream
 
     int timeout1;                         // ACK has to be received in this time
     int timeout2;                         // when receiving a packet, longest time between characters

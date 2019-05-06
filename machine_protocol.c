@@ -191,19 +191,21 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                         if (s->CS != 0){
                             protocol_send_nack(s->send_serial_data, s->curr_msg.CI);
                         } else {
+                            unsigned char *lastCIStream = &s->lastRXCI_NOACK;
                             if(s->curr_msg.SOM == PROTOCOL_SOM_ACK){
                                 protocol_send_ack(s->send_serial_data, s->curr_msg.CI);
+                                lastCIStream = &s->lastRXCI_ACK;
                             }
                             // 'if a message is received with the same CI as the last received message, ACK will be sent, but the message discarded.'
-                            if (s->lastRXCI != s->curr_msg.CI){
+                            if ((*lastCIStream) != s->curr_msg.CI){
                                 protocol_process_message(s, &(s->curr_msg));
                             }
-                            if( s->curr_msg.CI < s->lastRXCI) {
+                            if( s->curr_msg.CI < (*lastCIStream)) {
                                 s->missingRXmessages -= 1;
                             } else {
-                                s->missingRXmessages += s->curr_msg.CI - (s->lastRXCI + 1);
+                                s->missingRXmessages += s->curr_msg.CI - ((*lastCIStream) + 1);
                             }
-                            s->lastRXCI = s->curr_msg.CI;
+                            (*lastCIStream) = s->curr_msg.CI;
                         }
                         break;
                 }
@@ -216,13 +218,13 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
 
 // private
 void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI){
-    char tmp[] = { PROTOCOL_SOM_NOACK, CI, 1, PROTOCOL_CMD_NACK, 0 };
+    char tmp[] = { PROTOCOL_SOM_ACK, CI, 1, PROTOCOL_CMD_NACK, 0 };
     protocol_send_raw(send_serial_data, (PROTOCOL_MSG2 *)tmp);
 }
 
 // private
 void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI){
-    char tmp[] = { PROTOCOL_SOM_NOACK, CI, 1, PROTOCOL_CMD_ACK, 0 };
+    char tmp[] = { PROTOCOL_SOM_ACK, CI, 1, PROTOCOL_CMD_ACK, 0 };
     protocol_send_raw(send_serial_data, (PROTOCOL_MSG2 *)tmp);
 }
 
@@ -276,7 +278,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
         } else if(msg->SOM == PROTOCOL_SOM_ACK && s->send_state == PROTOCOL_ACK_TX_IDLE) {
             // Idling (not waiting for ACK), send the Message directly
             memcpy(&s->curr_send_msg_withAck, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
-            s->curr_send_msg_withAck.CI = ++(s->lastTXCI);
+            s->curr_send_msg_withAck.CI = ++(s->lastTXCI_ACK);
             protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
             s->last_send_time = HAL_GetTick();
@@ -286,7 +288,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
         } else if (msg->SOM == PROTOCOL_SOM_NOACK) {
             // Send Message without ACK immediately
             memcpy(&s->curr_send_msg_noAck, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
-            s->curr_send_msg_noAck.CI = ++(s->lastTXCI);
+            s->curr_send_msg_noAck.CI = ++(s->lastTXCI_NOACK);
             protocol_send_raw(s->send_serial_data, &s->curr_send_msg_noAck);
             return 0;
 
@@ -301,7 +303,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             // Make sure we are not waiting for another ACK. Check if There is something in the buffer.
             mpGetTxMsg(&s->TxBufferACK, &s->curr_send_msg_withAck.len);
             s->curr_send_msg_withAck.SOM = PROTOCOL_SOM_ACK;
-            s->curr_send_msg_withAck.CI = ++(s->lastTXCI);
+            s->curr_send_msg_withAck.CI = ++(s->lastTXCI_ACK);
             protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
             s->last_send_time = HAL_GetTick();
@@ -314,7 +316,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             if (ismsg){
                 // Queue has message waiting
                 s->curr_send_msg_noAck.SOM = PROTOCOL_SOM_NOACK;
-                s->curr_send_msg_noAck.CI = ++(s->lastTXCI);
+                s->curr_send_msg_noAck.CI = ++(s->lastTXCI_NOACK);
                 protocol_send_raw(s->send_serial_data, &s->curr_send_msg_noAck);
                 return 0;
             }
