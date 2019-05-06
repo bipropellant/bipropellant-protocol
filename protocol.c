@@ -399,6 +399,12 @@ void PreRead_getbuzzer(PROTOCOL_STAT *s){
 
 SUBSCRIBEDATA SubscribeData =  { .code=0, .period=0, .count=0, .som=0 };
 
+void PreWrite_setSubscription(PROTOCOL_STAT *s) {
+    // ensure clear in case of short write
+    memset(&SubscribeData, 0, sizeof(SubscribeData));
+}
+
+
 void PostWrite_setSubscription(PROTOCOL_STAT *s) {
     int len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
     int index = 0;
@@ -413,6 +419,9 @@ void PostWrite_setSubscription(PROTOCOL_STAT *s) {
     // If code was not found, look for vacant subscription slot
     if(index == len) {
         for (index = 0; index < len; index++) {
+            // NOTE: if you set a count of 0, or the count runs out, then
+            // the subscription will be overwritten later - 
+            // i.e. you effectively delete it....
             if( s->subscriptions[index].code == 0 || s->subscriptions[index].count == 0 ) {
                 break;
             }
@@ -422,8 +431,12 @@ void PostWrite_setSubscription(PROTOCOL_STAT *s) {
     // Fill in new subscription when possible; Plausibility check for period
     if(index < len || SubscribeData.period >= 10) {
         s->subscriptions[index] = SubscribeData;
+        //char tmp[100];
+        //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, SubscribeData.code, SubscribeData.period, SubscribeData.count, SubscribeData.som);
+        //consoleLog(tmp);
     } else {
         // TODO. Inform sender??
+        consoleLog("no subscriptions available\n");
     }
 }
 
@@ -453,7 +466,7 @@ PARAMSTAT params[] = {
     { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
     { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
     { 0x21, NULL, NULL, UI_NONE, &BuzzerData,       sizeof(BuzzerData),      PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer,         NULL },
-    { 0x22, NULL, NULL, UI_NONE, &SubscribeData,    sizeof(SubscribeData),   PARAM_RW, NULL,                     NULL, NULL,               PostWrite_setSubscription,   PostWrite_setSubscription },
+    { 0x22, NULL, NULL, UI_NONE, &SubscribeData,    sizeof(SubscribeData),   PARAM_RW, NULL,                     NULL, PreWrite_setSubscription,               PostWrite_setSubscription,   PostWrite_setSubscription },
 
 #ifdef FLASH_STORAGE
     { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash, NULL },  // write this with CURRENT_MAGIC to commit to flash

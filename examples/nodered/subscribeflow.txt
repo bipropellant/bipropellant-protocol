@@ -1,0 +1,1321 @@
+[
+    {
+        "id": "41654923.84a088",
+        "type": "tab",
+        "label": "subscribe noack machine protocol",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "e931c343.5470b",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "muxascii",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 560,
+        "y": 60,
+        "wires": [
+            [
+                "f8d6f8c1.2f0a48"
+            ]
+        ]
+    },
+    {
+        "id": "f8d6f8c1.2f0a48",
+        "type": "serial out",
+        "z": "41654923.84a088",
+        "name": "",
+        "serial": "8c18b840.27b7c8",
+        "x": 650,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "18e9e21.d1cc31e",
+        "type": "serial in",
+        "z": "41654923.84a088",
+        "name": "",
+        "serial": "8c18b840.27b7c8",
+        "x": 170,
+        "y": 400,
+        "wires": [
+            [
+                "6b3f0725.62fbc8",
+                "94c8823f.aeb1c"
+            ]
+        ]
+    },
+    {
+        "id": "6b3f0725.62fbc8",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "checkmsg",
+        "func": "//node.warn(msg);\nvar vars = flow.get('vars') || {};\n\nvars.stats = vars.stats || { \n    Msgs:0,\n    MsgsNOACK:0,\n    CIErrs:0, \n    ACKs:0, \n    NACKs:0, \n    CIErrsNOACK:0, \n    CSErrs:0 };\n\nvar s = flow.get('s') || {\n    state: 0,\n    count: 0,\n    CS: 0,\n    curr_msg:{\n        SOM:2,\n        CI:0,\n        len:0,\n        bytes: null,\n    },\n    //curr_msg_bytes: null,\n    ascii: '',\n    lastTXCI_ACK: 0,           // CI of last sent message in ACKed stream\n    lastTXCI_NOACK: 0,         // CI of last sent message in NOACKed stream\n    lastRXCI_ACK: 0,           // CI of last received message in ACKed stream\n    lastRXCI_NOACK: 0,         // CI of last received message in NOACKed stream\n\n};\n\nflow.set('s', s);\n\nvar soms = {\n    SOM_ACK: 2,\n    SOM_NOACK: 4,\n};\n\n\nvar states = {\n    PROTOCOL_STATE_IDLE:0,\n    PROTOCOL_STATE_WAIT_CI:1,\n    PROTOCOL_STATE_WAIT_LEN:2,\n    PROTOCOL_STATE_WAIT_END:3,\n};\n\n\nvar PROTOCOL_SOM = 2;\n\nvar send_ack = function(CI) {\n    var b = new Buffer(5);\n    b[0] = 2;\n    b[1] = CI;\n    b[2] = 1;\n    b[3] = 'A'.charCodeAt(0);\n    b[4] = (0 - b[1] - b[2] - b[3]) & 0xff;\n    \n    node.send([null, {payload: b}]);\n}\n\nvar send_nack = function(CI) {\n    var b = new Buffer(5);\n    b[0] = 2;\n    b[1] = CI;\n    b[2] = 1;\n    b[3] = 'N'.charCodeAt(0);\n    b[4] = (0 - b[1] - b[2] - b[3]) & 0xff;\n    \n    node.send([null, {payload: b}]);\n}\n\nvar protocol_byte = function( byte ){\n    //node.warn(byte + \" \"+ s.state);\n    switch(s.state){\n        case states.PROTOCOL_STATE_IDLE:\n            if ((byte == soms.SOM_ACK) || (byte == soms.SOM_NOACK)){\n                s.curr_msg.SOM = byte;\n                s.state = states.PROTOCOL_STATE_WAIT_CI;\n                s.CS = 0;\n            } else {\n                //////////////////////////////////////////////////////\n                // if the byte was NOT SOM (02), then treat it as an \n                // ascii protocol byte.  BOTH protocol can co-exist\n                //ascii_byte( byte );\n                //////////////////////////////////////////////////////\n                if (byte >= 0x20) {\n                    s.ascii += String.fromCharCode(byte);\n                }\n                if (byte == 10) {\n                    if (s.ascii){\n                        node.send([null, null, {payload:s.ascii}]);\n                    }\n                    s.ascii = '';\n                }\n\n                if (byte == 13) {\n                    if (s.ascii){\n                        node.send([null, null, {payload:s.ascii}]);\n                    }\n                    s.ascii = '';\n                }\n                \n            }\n            break;\n        case states.PROTOCOL_STATE_WAIT_CI:\n            s.curr_msg.CI = byte;\n            s.CS += byte;\n            s.state = states.PROTOCOL_STATE_WAIT_LEN;\n            break;\n        case states.PROTOCOL_STATE_WAIT_LEN:\n            s.curr_msg.len = byte;\n            s.curr_msg.bytes = new Buffer(s.curr_msg.len);\n\n            s.count = 0;\n            s.CS += byte;\n            s.state = states.PROTOCOL_STATE_WAIT_END;\n            break;\n        case states.PROTOCOL_STATE_WAIT_END:\n            //if (!s.curr_msg_bytes){\n            //    s.state = states.PROTOCOL_STATE_IDLE;\n            //    break;\n            //}\n            s.CS += byte;\n            if (s.count >= s.curr_msg.len){\n                s.CS &= 0xff;\n                if (s.CS !== 0){\n                    node.warn('BAD CS');\n                    var m = [];\n                    m.push(s.curr_msg.SOM);\n                    m.push(s.curr_msg.CI);\n                    m.push(s.curr_msg.len);\n                    for (var x = 0; x < s.curr_msg.len; x++){\n                        m.push(s.curr_msg.bytes[x]);\n                    }\n                    m.push(s.CS);\n                    node.warn('bad cs'+ util.inspect(m)+\"xxx\"+ util.inspect(s.curr_msg_bytes));\n                    var msgs = flow.get(\"msgs\");\n                    //node.warn(msgs);\n                    vars.stats.CSErrs++;\n                    send_nack(s.curr_msg.CI);\n                    \n                    if (msgs && msgs[s.curr_msg.bytes[1]]){\n                        node.warn(\"last msg\", msgs[s.curr_msg.bytes[1]]);\n                    }\n                } else {\n                    switch (s.curr_msg.bytes[0]){\n                        case 'N'.charCodeAt(0):\n                            node.warn('NACK');\n                            vars.stats.NACKs++;\n                            break;\n                        case 'A'.charCodeAt(0):\n                            //node.warn('ACK');\n                            vars.stats.ACKs++;\n                            break;\n                        default:\n                            if (s.curr_msg.SOM === soms.SOM_ACK) {\n                                vars.stats.Msgs++;\n                                if (s.curr_msg.CI !== (s.lastRXCI_ACK+1) & 0xFF) {\n                                    vars.stats.CIErrs++;\n                                }\n                                s.lastRXCI_ACK = s.curr_msg.CI;\n                            } else {\n                                vars.stats.MsgsNOACK++;\n                                if (s.curr_msg.CI !== (s.lastRXCI_NOACK+1) & 0xFF) {\n                                    vars.stats.CIErrsNOACK++;\n                                }\n                                s.lastRXCI_NOACK = s.curr_msg.CI;\n                            }\n                            \n                            node.send({payload: s.curr_msg.bytes, msg_complete:s.curr_msg});\n                            if (s.curr_msg.SOM === soms.SOM_ACK) {\n                                send_ack(s.curr_msg.CI);\n                            }\n                            break;\n                    }\n                    //node.warn(s.curr_msg);\n                }\n                //node.warn(\"set idle\");\n                s.state = states.PROTOCOL_STATE_IDLE;\n            } else {\n                s.curr_msg.bytes[s.count++] = byte;\n            }\n            break;\n    }\n};\n\nfor (var i = 0; i < msg.payload.length; i++){\n    protocol_byte(msg.payload[i]);\n}\n\n//return msg;",
+        "outputs": 3,
+        "noerr": 0,
+        "x": 340,
+        "y": 400,
+        "wires": [
+            [
+                "bba4f43.0659e08",
+                "c4c7f821.475088"
+            ],
+            [
+                "f8d6f8c1.2f0a48",
+                "5f19c4c4.bcec7c"
+            ],
+            [
+                "94c8823f.aeb1c"
+            ]
+        ]
+    },
+    {
+        "id": "f877ed25.940ad",
+        "type": "debug",
+        "z": "41654923.84a088",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "x": 970,
+        "y": 760,
+        "wires": []
+    },
+    {
+        "id": "e828e4f6.d865e8",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 60,
+        "wires": [
+            [
+                "63a9aae8.89ac94"
+            ]
+        ]
+    },
+    {
+        "id": "63a9aae8.89ac94",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "stop debug and stop poweroff",
+        "func": "var outstr = 'unlockASCII\\nE\\nP\\nI\\nX';\n\nvar out = new Buffer(outstr);\n\nmsg.payload = out;\n\nflow.set('s',  null);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 350,
+        "y": 60,
+        "wires": [
+            [
+                "e931c343.5470b"
+            ]
+        ]
+    },
+    {
+        "id": "cf66e08a.006fa",
+        "type": "comment",
+        "z": "41654923.84a088",
+        "name": "Example Ascii commands",
+        "info": "",
+        "x": 170,
+        "y": 20,
+        "wires": []
+    },
+    {
+        "id": "c71eced7.dc87",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "request hall data",
+        "func": "\nvar len = 2;\nvar test = new Buffer(len);\n\ntest[0] = \"R\".charCodeAt(0);\ntest[1] = 4;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 310,
+        "y": 780,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "6daddecc.3e3b5",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 100,
+        "y": 780,
+        "wires": [
+            [
+                "c71eced7.dc87"
+            ]
+        ]
+    },
+    {
+        "id": "bba4f43.0659e08",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "parsecommands",
+        "func": "\nvar out = '';\n\n//node.warn(\"cmd \"+String.fromCharCode(msg.payload[0])+ \" \"+util.inspect(msg.payload));\n\nswitch (msg.payload[0]){\n    case 't'.charCodeAt(0):\n        out = {test:'test return len'+msg.payload.length};\n        break;\n    case 'r'.charCodeAt(0):\n        switch(msg.payload[1]) {\n            case 1:\n                out = {\n                    sensordata:{\n                        Angle:[msg.payload.readInt16LE(2+0),\n                            msg.payload.readInt16LE(2+28+0)],\n                        Roll:[msg.payload.readInt16LE(2+7+0),\n                            msg.payload.readInt16LE(2+28+7+0)],\n                        raw:msg.payload.slice(2),\n                        \n                    }\n                };\n                break;\n            case 3:\n                out = {\n                    speeddata:{\n                        WantedSpeed_mm_s:[msg.payload.readInt32LE(2+0),\n                            msg.payload.readInt32LE(2+4)],\n                        MaxPower:msg.payload.readInt32LE(2+8),\n                        MinPower:msg.payload.readInt32LE(2+12),\n                        MinSpeed:msg.payload.readInt32LE(2+16),\n                        SpeedDiff_mm_s:[msg.payload.readInt32LE(2+20),\n                            msg.payload.readInt32LE(2+24)],\n                        SpeedPower:[msg.payload.readInt32LE(2+28),\n                            msg.payload.readInt32LE(2+32)],\n\n                    }\n                };\n                break;\n            case 4:\n                out = {\n                    hallmm:{\n                        L:msg.payload.readInt32LE(2),\n                        R:msg.payload.readInt32LE(6),\n                        LO:msg.payload.readInt32LE(10),\n                        RO:msg.payload.readInt32LE(14),\n                    }\n                };\n                // reset the offsets\n                msg.payload[0] = 'W'.charCodeAt(0);\n                node.send([null, msg]);\n                break;\n            case 0x0c:\n                out = {\n                    xyt:{\n                        X:msg.payload.readInt32LE(2),\n                        Y:msg.payload.readInt32LE(6),\n                        degrees:msg.payload.readInt32LE(10)\n                    }\n                };\n                // reset the offsets\n                msg.payload[0] = 'W'.charCodeAt(0);\n                node.send([null, msg]);\n                break;\n            case 0x0d:\n                out = {\n                    PWMdata:{\n                        pwm:[msg.payload.readInt32LE(2+0),\n                            msg.payload.readInt32LE(2+4)],\n                        MaxPower:msg.payload.readInt32LE(2+8),\n                        MinPower:msg.payload.readInt32LE(2+12),\n                        Minpwm:msg.payload.readInt32LE(2+16),\n\n                    }\n                };\n                break;\n                \n        }\n        break;\n        \n}\n\nif (out) {\n    msg.payload = out;\n    return msg;\n}",
+        "outputs": 2,
+        "noerr": 0,
+        "x": 670,
+        "y": 360,
+        "wires": [
+            [
+                "aa91f17d.6a075",
+                "c4c7f821.475088"
+            ],
+            [
+                "80d335ce.085b58"
+            ]
+        ]
+    },
+    {
+        "id": "80d335ce.085b58",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "sendmsg",
+        "func": "\n\n\nvar len = msg.payload.length;\nvar test = new Buffer(len+4);\n\n\nvar soms = {\n    SOM_ACK: 2,\n    SOM_NOACK: 4,\n};\n\nvar s = flow.get('s') || {\n    state: 0,\n    count: 0,\n    CS: 0,\n    curr_msg:{\n        SOM:2,\n        CI:0,\n        len:0,\n        bytes: new Buffer(256)\n    },\n    curr_msg_bytes: null,\n    ascii: '',\n    lastTXCI_ACK: 0,           // CI of last sent message in ACKed stream\n    lastTXCI_NOACK: 0,         // CI of last sent message in NOACKed stream\n    lastRXCI_ACK: 0,           // CI of last received message in ACKed stream\n    lastRXCI_NOACK: 0,         // CI of last received message in NOACKed stream\n\n};\n\nflow.set('s', s);\n\ns.lastTXCI_ACK = ((s.lastTXCI_ACK+1)%256);\n\ntest[0] = soms.SOM_ACK;\ntest[1] = s.lastTXCI_ACK;\ntest[2] = len;\n\n\n// one less, because cmd is included\nvar cs = 0;\n\nvar i;\nfor (i = 1; i < test.length-1; i++){\n    if (i > 2) {\n        test[i] = msg.payload[i-3];\n    }\n    cs -= test[i];\n}\ntest[i] = cs & 0xff;\n\nvar msgs = flow.get(\"msgs\") || {};\nmsgs[test[1]] = test;\nflow.set(\"msgs\", msgs);\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 440,
+        "y": 520,
+        "wires": [
+            [
+                "f8d6f8c1.2f0a48",
+                "5f19c4c4.bcec7c"
+            ]
+        ]
+    },
+    {
+        "id": "94c8823f.aeb1c",
+        "type": "debug",
+        "z": "41654923.84a088",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "x": 360,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "aa91f17d.6a075",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "combinetovars",
+        "func": "\nvar vars = flow.get('vars') || {};\n\nObject.assign(vars, msg.payload);\n\nflow.set('vars', vars);\nflow.vars = vars;\n\nreturn { payload: vars };",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 920,
+        "y": 700,
+        "wires": [
+            [
+                "42e83b56.45b164"
+            ]
+        ]
+    },
+    {
+        "id": "42e83b56.45b164",
+        "type": "json",
+        "z": "41654923.84a088",
+        "name": "",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 830,
+        "y": 760,
+        "wires": [
+            [
+                "f877ed25.940ad"
+            ]
+        ]
+    },
+    {
+        "id": "88c87911.b29888",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 100,
+        "y": 820,
+        "wires": [
+            [
+                "1a43c9a1.ad99d6"
+            ]
+        ]
+    },
+    {
+        "id": "1a43c9a1.ad99d6",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "request sensor data",
+        "func": "\nvar len = 2;\nvar test = new Buffer(len);\n\ntest[0] = \"R\".charCodeAt(0);\ntest[1] = 1;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 320,
+        "y": 820,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "8b61e234.48d5a",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "make test buffer",
+        "func": "\nvar len = ((Math.random()*30)>>0)+1;\nvar test = new Buffer(len);\n\ntest[0] = \"T\".charCodeAt(0);\n\nvar start = (Math.random()*256)>>0;\n\nfor (i = 1; i < len; i++){\n    test[i] = (start+i) & 0xff;\n}\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 300,
+        "y": 1100,
+        "wires": [
+            [
+                "914bca.6d44b438"
+            ]
+        ]
+    },
+    {
+        "id": "b6aae24f.5a57f",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 100,
+        "y": 1100,
+        "wires": [
+            [
+                "8b61e234.48d5a"
+            ]
+        ]
+    },
+    {
+        "id": "8807756c.10d038",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 660,
+        "y": 660,
+        "wires": [
+            [
+                "11ff985f.922078"
+            ]
+        ]
+    },
+    {
+        "id": "11ff985f.922078",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "clear vars",
+        "func": "flow.set('vars', {});\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 900,
+        "y": 660,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "b02dda53.fac958",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "100",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1140,
+        "wires": [
+            [
+                "a95ef011.7066c"
+            ]
+        ]
+    },
+    {
+        "id": "a95ef011.7066c",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "sendposnincr",
+        "func": "\nvar len = 2+4+4;\nvar test = new Buffer(len);\n\ntest[0] = \"W\".charCodeAt(0);\ntest[1] = 5;\ntest.writeInt32LE(msg.payload, 2); \ntest.writeInt32LE(msg.payload, 6); \n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 290,
+        "y": 1140,
+        "wires": [
+            [
+                "914bca.6d44b438"
+            ]
+        ]
+    },
+    {
+        "id": "fdf395c9.037298",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "140",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1220,
+        "wires": [
+            [
+                "81e80ba.5f7f8f8"
+            ]
+        ]
+    },
+    {
+        "id": "81e80ba.5f7f8f8",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "sendspeed",
+        "func": "\nvar len = 2+4+4;\nvar test = new Buffer(len);\n\ntest[0] = \"W\".charCodeAt(0);\ntest[1] = 3;\ntest.writeInt32LE(msg.payload, 2); \ntest.writeInt32LE(msg.payload, 6); \n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 290,
+        "y": 1220,
+        "wires": [
+            [
+                "914bca.6d44b438"
+            ]
+        ]
+    },
+    {
+        "id": "aeaa62b6.df7",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1260,
+        "wires": [
+            [
+                "81e80ba.5f7f8f8"
+            ]
+        ]
+    },
+    {
+        "id": "561f7d8a.328424",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 180,
+        "wires": [
+            [
+                "f05014ed.b486c8"
+            ]
+        ]
+    },
+    {
+        "id": "f05014ed.b486c8",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "send ?",
+        "func": "var out = new Buffer(4);\nout[0] = \"?\".charCodeAt(0);\nout[1] = \"\\n\".charCodeAt(0);\n\nmsg.payload = out;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 270,
+        "y": 180,
+        "wires": [
+            [
+                "e931c343.5470b"
+            ]
+        ]
+    },
+    {
+        "id": "73d55dab.c0fa44",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "-100",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1180,
+        "wires": [
+            [
+                "a95ef011.7066c"
+            ]
+        ]
+    },
+    {
+        "id": "597a09b6.a48848",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "sendenable",
+        "func": "\nvar len = 2+1;\nvar test = new Buffer(len);\n\ntest[0] = \"W\".charCodeAt(0);\ntest[1] = 9;\ntest[2] = msg.payload;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 290,
+        "y": 1300,
+        "wires": [
+            [
+                "914bca.6d44b438"
+            ]
+        ]
+    },
+    {
+        "id": "8431b15d.b9ae5",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "1",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1300,
+        "wires": [
+            [
+                "597a09b6.a48848"
+            ]
+        ]
+    },
+    {
+        "id": "ed964a61.cda1c8",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1340,
+        "wires": [
+            [
+                "597a09b6.a48848"
+            ]
+        ]
+    },
+    {
+        "id": "a2e15f96.ea3f2",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "request xyt data",
+        "func": "\nvar len = 2;\nvar test = new Buffer(len);\n\ntest[0] = \"R\".charCodeAt(0);\ntest[1] = 0x0c;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 300,
+        "y": 900,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "2170ccdc.ee8ca4",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 100,
+        "y": 900,
+        "wires": [
+            [
+                "a2e15f96.ea3f2"
+            ]
+        ]
+    },
+    {
+        "id": "30f70767.9cb4c8",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "send poweroff disable",
+        "func": "\nvar len = 2+1;\nvar test = new Buffer(len);\n\ntest[0] = \"W\".charCodeAt(0);\ntest[1] = 0x0a;\ntest[2] = 0x01;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 320,
+        "y": 1460,
+        "wires": [
+            [
+                "914bca.6d44b438"
+            ]
+        ]
+    },
+    {
+        "id": "d4d0d58a.d95d18",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1460,
+        "wires": [
+            [
+                "30f70767.9cb4c8"
+            ]
+        ]
+    },
+    {
+        "id": "914bca.6d44b438",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "mux",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 570,
+        "y": 1320,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "c4c7f821.475088",
+        "type": "debug",
+        "z": "41654923.84a088",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "x": 930,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "58beb53a.780adc",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "request speed data",
+        "func": "\nvar len = 2;\nvar test = new Buffer(len);\n\ntest[0] = \"R\".charCodeAt(0);\ntest[1] = 3;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 310,
+        "y": 860,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "5c7d3180.abe83",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 100,
+        "y": 860,
+        "wires": [
+            [
+                "58beb53a.780adc"
+            ]
+        ]
+    },
+    {
+        "id": "a718c548.0f6e48",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "140",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1380,
+        "wires": [
+            [
+                "94834070.cd45d"
+            ]
+        ]
+    },
+    {
+        "id": "bab37e2.91d238",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1420,
+        "wires": [
+            [
+                "94834070.cd45d"
+            ]
+        ]
+    },
+    {
+        "id": "94834070.cd45d",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "sendpwm",
+        "func": "\nvar len = 2+4+4;\nvar test = new Buffer(len);\n\ntest[0] = \"W\".charCodeAt(0);\ntest[1] = 0xd;\ntest.writeInt32LE(msg.payload, 2); \ntest.writeInt32LE(msg.payload, 6); \n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 280,
+        "y": 1380,
+        "wires": [
+            [
+                "914bca.6d44b438"
+            ]
+        ]
+    },
+    {
+        "id": "8869422e.fa8ad",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "readpwm",
+        "func": "\nvar len = 2;\nvar test = new Buffer(len);\n\ntest[0] = \"R\".charCodeAt(0);\ntest[1] = 0xd;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 280,
+        "y": 940,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "4488b8b1.80e0b8",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 940,
+        "wires": [
+            [
+                "8869422e.fa8ad"
+            ]
+        ]
+    },
+    {
+        "id": "96fdfab4.a1ce98",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "readenable",
+        "func": "\nvar len = 2;\nvar test = new Buffer(len);\n\ntest[0] = \"R\".charCodeAt(0);\ntest[1] = 9;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 290,
+        "y": 980,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "f763404a.35736",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 980,
+        "wires": [
+            [
+                "96fdfab4.a1ce98"
+            ]
+        ]
+    },
+    {
+        "id": "7f756c3e.5856f4",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "0",
+        "payloadType": "num",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1020,
+        "wires": [
+            [
+                "a85ed040.e9117"
+            ]
+        ]
+    },
+    {
+        "id": "a85ed040.e9117",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "readhbenable",
+        "func": "\nvar len = 2;\nvar test = new Buffer(len);\n\ntest[0] = \"R\".charCodeAt(0);\ntest[1] = 0xa0;\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 300,
+        "y": 1020,
+        "wires": [
+            [
+                "42d3fcfa.597f74"
+            ]
+        ]
+    },
+    {
+        "id": "6c4c2377.639d3c",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "reset and write flash",
+        "func": "var outstr = 'fi\\n';\n\nvar out = new Buffer(outstr);\n\nmsg.payload = out;\n\nflow.set('s',  null);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 320,
+        "y": 100,
+        "wires": [
+            [
+                "e931c343.5470b"
+            ]
+        ]
+    },
+    {
+        "id": "aa2790dc.bfdc6",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 100,
+        "wires": [
+            [
+                "6c4c2377.639d3c"
+            ]
+        ]
+    },
+    {
+        "id": "8fc8fa93.b68b48",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "read all flash",
+        "func": "var outstr = 'fa\\n';\n\nvar out = new Buffer(outstr);\n\nmsg.payload = out;\n\nflow.set('s',  null);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 290,
+        "y": 140,
+        "wires": [
+            [
+                "e931c343.5470b"
+            ]
+        ]
+    },
+    {
+        "id": "42582ad0.2c4c74",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 140,
+        "wires": [
+            [
+                "8fc8fa93.b68b48"
+            ]
+        ]
+    },
+    {
+        "id": "86e4ea97.61d338",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 220,
+        "wires": [
+            [
+                "902378a9.af9198"
+            ]
+        ]
+    },
+    {
+        "id": "902378a9.af9198",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "reset firmware",
+        "func": "var outstr = 'Pr\\n';\n\nvar out = new Buffer(outstr);\n\nmsg.payload = out;\n\nflow.set('s',  null);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 300,
+        "y": 220,
+        "wires": [
+            [
+                "e931c343.5470b"
+            ]
+        ]
+    },
+    {
+        "id": "6c9e6ef5.4750a",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 260,
+        "wires": [
+            [
+                "9df88ec2.edd52"
+            ]
+        ]
+    },
+    {
+        "id": "9df88ec2.edd52",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "enable console",
+        "func": "var outstr = 'Ec\\n';\n\nvar out = new Buffer(outstr);\n\nmsg.payload = out;\n\nflow.set('s',  null);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 300,
+        "y": 260,
+        "wires": [
+            [
+                "e931c343.5470b"
+            ]
+        ]
+    },
+    {
+        "id": "a61b70af.55b4a",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "write flash sl",
+        "func": "var outstr = 'fsl300\\n';\n\nvar out = new Buffer(outstr);\n\nmsg.payload = out;\n\nflow.set('s',  null);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 290,
+        "y": 300,
+        "wires": [
+            [
+                "e931c343.5470b"
+            ]
+        ]
+    },
+    {
+        "id": "de6e77.7a3d1188",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 120,
+        "y": 300,
+        "wires": [
+            [
+                "a61b70af.55b4a"
+            ]
+        ]
+    },
+    {
+        "id": "dcc471d8.6f2a8",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "subscribe hall data",
+        "func": "\nvar len = 16;\nvar test = new Buffer(len);\n\ntest[0] = \"W\".charCodeAt(0);\n\ntest[1] = 0x22; //subscribe\ntest[2] = 0x04; // code = halldata\n\ntest[3] = 0x00; // ~1s\ntest[4] = 0x04;\ntest[5] = 0x00;\ntest[6] = 0x00;\n\nif (msg.payload === 'stop') {\n    test[7] = test[8] = test[9] = test[10] = 0;\n} else {\n    test[7] = 0xff; // forever\n    test[8] = 0xff;\n    test[9] = 0xff;\n    test[10] = 0xff;\n}\n\ntest[11] = 0x04; // SOM\n\ntest[12] = 0x00; // last sent\ntest[13] = 0x00;\ntest[14] = 0x00;\ntest[15] = 0x00;\n\n\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 310,
+        "y": 1540,
+        "wires": [
+            [
+                "8da1604b.79dd6"
+            ]
+        ]
+    },
+    {
+        "id": "96668584.05a8d8",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 100,
+        "y": 1540,
+        "wires": [
+            [
+                "dcc471d8.6f2a8"
+            ]
+        ]
+    },
+    {
+        "id": "5f19c4c4.bcec7c",
+        "type": "debug",
+        "z": "41654923.84a088",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "x": 610,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "7b9ebdae.999934",
+        "type": "http in",
+        "z": "41654923.84a088",
+        "name": "",
+        "url": "/data",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 980,
+        "y": 880,
+        "wires": [
+            [
+                "8d46e949.988bb8"
+            ]
+        ]
+    },
+    {
+        "id": "9f24671.9580598",
+        "type": "http response",
+        "z": "41654923.84a088",
+        "name": "",
+        "statusCode": "",
+        "headers": {},
+        "x": 970,
+        "y": 1000,
+        "wires": []
+    },
+    {
+        "id": "b8f1d956.3d96c8",
+        "type": "template",
+        "z": "41654923.84a088",
+        "name": "",
+        "field": "payload",
+        "fieldType": "msg",
+        "format": "handlebars",
+        "syntax": "mustache",
+        "template": "<html>\n    <head>\n        <meta http-equiv=\"refresh\" content=\"0.5\">\n    </head>\n<body>\n    {{{payload}}}\n</body>\n</html>",
+        "output": "str",
+        "x": 980,
+        "y": 960,
+        "wires": [
+            [
+                "9f24671.9580598"
+            ]
+        ]
+    },
+    {
+        "id": "8d46e949.988bb8",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "build HTML",
+        "func": "let vars = flow.get('vars');\n\n//template did not work?\n\nvar o = '';\n\nif (vars) {\n    if (vars.hallmm) {\n        o += '<p>Hall L: '+vars.hallmm.L+'</p>';\n        o += '<p>Hall R: '+vars.hallmm.R+'</p>';\n        o += '<p/>';\n    }\n    \n    if (vars.xyt) {\n        o += '<p>Deadreckoning X: '+vars.xyt.X+'</p>';\n        o += '<p>Deadreckoning Y: '+vars.xyt.Y+'</p>';\n        o += '<p>Deadreckoning t: '+vars.xyt.degrees+'</p>';\n    }\n    if (vars.stats) {\n        o += '<p>Msgs: '+vars.stats.Msgs+'</p>';\n        o += '<p>MsgsNOACK: '+vars.stats.MsgsNOACK+'</p>';\n        o += '<p>CIErrs: '+vars.stats.CIErrs+'</p>';\n        o += '<p>ACKs: '+vars.stats.ACKs+'</p>';\n        o += '<p>NACKs: '+vars.stats.NACKs+'</p>';\n        o += '<p>CIErrsNOACK: '+vars.stats.CIErrsNOACK+'</p>';\n        o += '<p>CSErrs: '+vars.stats.CSErrs+'</p>';\n    }\n\n}\n   \nmsg.payload = o;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 990,
+        "y": 920,
+        "wires": [
+            [
+                "b8f1d956.3d96c8"
+            ]
+        ]
+    },
+    {
+        "id": "1e79af56.40a411",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "subscribe xyt data",
+        "func": "\nvar len = 16;\nvar test = new Buffer(len);\n\ntest[0] = \"W\".charCodeAt(0);\n\ntest[1] = 0x22; //subscribe\ntest[2] = 0x0c; // code = halldata\n\ntest[3] = 0x00; // ~5s\ntest[4] = 0x04;\ntest[5] = 0x00;\ntest[6] = 0x00;\n\nif (msg.payload === 'stop') {\n    test[7] = test[8] = test[9] = test[10] = 0;\n} else {\n    test[7] = 0xff; // forever\n    test[8] = 0xff;\n    test[9] = 0xff;\n    test[10] = 0xff;\n}\n\ntest[11] = 0x04; // SOM\n\ntest[12] = 0x00; // last sent\ntest[13] = 0x00;\ntest[14] = 0x00;\ntest[15] = 0x00;\n\n\n\nmsg.payload = test;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 310,
+        "y": 1620,
+        "wires": [
+            [
+                "8da1604b.79dd6"
+            ]
+        ]
+    },
+    {
+        "id": "97bf4079.27ffc",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 100,
+        "y": 1620,
+        "wires": [
+            [
+                "1e79af56.40a411"
+            ]
+        ]
+    },
+    {
+        "id": "42d3fcfa.597f74",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "mux",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 570,
+        "y": 860,
+        "wires": [
+            [
+                "80d335ce.085b58"
+            ]
+        ]
+    },
+    {
+        "id": "db1e2a56.a36d28",
+        "type": "comment",
+        "z": "41654923.84a088",
+        "name": "Simple HTML display",
+        "info": "",
+        "x": 940,
+        "y": 840,
+        "wires": []
+    },
+    {
+        "id": "5c59dd4d.8615b4",
+        "type": "comment",
+        "z": "41654923.84a088",
+        "name": "Reads",
+        "info": "",
+        "x": 70,
+        "y": 740,
+        "wires": []
+    },
+    {
+        "id": "6ee90ca1.b8c514",
+        "type": "comment",
+        "z": "41654923.84a088",
+        "name": "write",
+        "info": "",
+        "x": 70,
+        "y": 1060,
+        "wires": []
+    },
+    {
+        "id": "6a7eaa4c.662644",
+        "type": "comment",
+        "z": "41654923.84a088",
+        "name": "subscribes",
+        "info": "",
+        "x": 80,
+        "y": 1500,
+        "wires": []
+    },
+    {
+        "id": "8da1604b.79dd6",
+        "type": "function",
+        "z": "41654923.84a088",
+        "name": "mux",
+        "func": "\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 550,
+        "y": 1540,
+        "wires": [
+            [
+                "914bca.6d44b438"
+            ]
+        ]
+    },
+    {
+        "id": "75e72fe8.948c5",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "stop",
+        "payloadType": "str",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1580,
+        "wires": [
+            [
+                "dcc471d8.6f2a8"
+            ]
+        ]
+    },
+    {
+        "id": "b3146b89.e8e718",
+        "type": "inject",
+        "z": "41654923.84a088",
+        "name": "",
+        "topic": "",
+        "payload": "stop",
+        "payloadType": "str",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "x": 90,
+        "y": 1660,
+        "wires": [
+            [
+                "1e79af56.40a411"
+            ]
+        ]
+    },
+    {
+        "id": "8c18b840.27b7c8",
+        "type": "serial-port",
+        "z": "",
+        "serialport": "/dev/ttyUSB0",
+        "serialbaud": "9600",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "newline": "50",
+        "bin": "bin",
+        "out": "interbyte",
+        "addchar": false,
+        "responsetimeout": ""
+    }
+]
