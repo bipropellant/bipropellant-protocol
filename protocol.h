@@ -217,8 +217,23 @@ typedef struct tag_PROTOCOL_STAT {
 #define UI_NONE 0
 #define UI_SHORT 1
 
+
+#define FN_TYPE_PRE_READ          1
+#define FN_TYPE_POST_READ         2
+#define FN_TYPE_PRE_WRITE         3
+#define FN_TYPE_POST_WRITE        4
+#define FN_TYPE_PRE_READRESPONSE  5
+#define FN_TYPE_POST_READRESPONSE 6
+
+
 #pragma pack(push, 1)
-typedef struct tag_PARAMSTAT {
+struct tag_PARAMSTAT;
+typedef struct tag_PARAMSTAT PARAMSTAT;
+
+typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type );
+
+
+struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
     char *description;      // if non-null, description
     char *uistr;            // if non-null, used in ascii protocol to adjust with f<str>num<cr>
@@ -227,12 +242,8 @@ typedef struct tag_PARAMSTAT {
     char len;               // length of value
     char rw;                // PARAM_R or PARAM_RW
 
-    void (*preread)(PROTOCOL_STAT *s);                // function to call before read
-    void (*postread)(PROTOCOL_STAT *s);               // function to call after read
-    void (*prewrite)(PROTOCOL_STAT *s);               // function to call before write
-    void (*postwrite)(PROTOCOL_STAT *s);              // function to call after write
-    void (*receivedread)(PROTOCOL_STAT *s);           // function to call after requested data was received
-} PARAMSTAT;
+    PARAMSTAT_FN fn;        // function to handle events
+};
 
 
 #pragma pack(pop)

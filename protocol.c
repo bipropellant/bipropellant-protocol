@@ -43,11 +43,6 @@
 
 
 //////////////////////////////////////////////
-// Function pointer which can be set for "debugging"
-void noprint(const char str[]) {};
-void (*debugprint)(const char str[]) = noprint;
-
-//////////////////////////////////////////////
 // things needed by main.c
 int control_type = 0;
 
@@ -131,24 +126,36 @@ extern void init_PID_control();
     extern volatile ELECTRICAL_PARAMS electrical_measurements;
 #endif
 
-void PostWrite_writeflash(PROTOCOL_STAT *s){
-    if (FlashContent.magic != CURRENT_MAGIC){
-        char temp[128];
-        sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
-        consoleLog(temp);
-        FlashContent.magic = CURRENT_MAGIC;
-        return;
+void fn_FlashContentMagic ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_POST_WRITE:
+            if (FlashContent.magic != CURRENT_MAGIC){
+                char temp[128];
+                sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
+                consoleLog(temp);
+                FlashContent.magic = CURRENT_MAGIC;
+                return;
+            }
+            writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
+            consoleLog("wrote flash\r\n");
+            break;
     }
-    writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-    consoleLog("wrote flash\r\n");
 }
 
-void PostWrite_PID(PROTOCOL_STAT *s){
-    change_PID_constants();
+void fn_FlashContentPID ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_POST_WRITE:
+            change_PID_constants();
+            break;
+    }
 }
 
-void PostWrite_Cur_Limit(PROTOCOL_STAT *s){
-    electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
+void fn_FlashContentMaxCurrLim ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_POST_WRITE:
+            electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
+            break;
+    }
 }
 
 #endif
@@ -160,28 +167,33 @@ void PostWrite_Cur_Limit(PROTOCOL_STAT *s){
 
 //////////////////////////////////////////////
 // make values safe before we change enable...
-void PreWrite_enable(PROTOCOL_STAT *s) {
-    if (!enable) {
-#ifdef HALL_INTERRUPTS
-        // assume we will enable,
-        // set wanted posn to current posn, else we may rush into a wall
-        PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
-        PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
-#endif
 
-        // clear speeds to zero
-        SpeedData.wanted_speed_mm_per_sec[0] = 0;
-        SpeedData.wanted_speed_mm_per_sec[1] = 0;
-        speedsx.speedl = 0;
-        speedsx.speedr = 0;
-        PWMData.pwm[0] = 0;
-        PWMData.pwm[1] = 0;
-#ifdef FLASH_STORAGE
-        init_PID_control();
-#endif
+void fn_enable ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_WRITE:
+            if (!enable) {
+                #ifdef HALL_INTERRUPTS
+                    // assume we will enable,
+                    // set wanted posn to current posn, else we may rush into a wall
+                    PosnData.wanted_posn_mm[0] = HallData[0].HallPosn_mm;
+                    PosnData.wanted_posn_mm[1] = HallData[1].HallPosn_mm;
+                #endif
 
+                // clear speeds to zero
+                SpeedData.wanted_speed_mm_per_sec[0] = 0;
+                SpeedData.wanted_speed_mm_per_sec[1] = 0;
+                speedsx.speedl = 0;
+                speedsx.speedr = 0;
+                PWMData.pwm[0] = 0;
+                PWMData.pwm[1] = 0;
+                #ifdef FLASH_STORAGE
+                        init_PID_control();
+                #endif
+            }
+            break;
     }
 }
+
 
 #ifdef CONTROL_SENSOR
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -208,17 +220,20 @@ SPEED_DATA SpeedData = {
     40 // minimum mm/s which we can ask for
 };
 
+void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ:
+            speedsx.speedl = ((SPEED_DATA*) (param->ptr))->wanted_speed_mm_per_sec[0];
+            speedsx.speedr = ((SPEED_DATA*) (param->ptr))->wanted_speed_mm_per_sec[1];
+            break;
 
-void PreRead_getspeeds(PROTOCOL_STAT *s){
-    speedsx.speedl = SpeedData.wanted_speed_mm_per_sec[0];
-    speedsx.speedr = SpeedData.wanted_speed_mm_per_sec[1];
-}
-
-void PreWrite_setspeeds(PROTOCOL_STAT *s){
-    PreWrite_enable(s);
-    enable = 1;
-    control_type = CONTROL_TYPE_SPEED;
-    timeout = 0;
+        case FN_TYPE_PRE_WRITE:
+            fn_enable( s, param, FN_TYPE_PRE_WRITE); // TODO: I don't like calling this with a param entry which does not fit to the handler..
+            enable = 1;
+            control_type = CONTROL_TYPE_SPEED;
+            timeout = 0;
+            break;
+    }
 }
 
 #ifdef HALL_INTERRUPTS
@@ -227,16 +242,20 @@ void PreWrite_setspeeds(PROTOCOL_STAT *s){
 
 POSN Position;
 
-void PreRead_getposnupdate(PROTOCOL_STAT *s){
-    Position.LeftAbsolute = HallData[0].HallPosn_mm;
-    Position.LeftOffset = HallData[0].HallPosn_mm - HallData[0].HallPosn_mm_lastread;
-    Position.RightAbsolute = HallData[1].HallPosn_mm;
-    Position.RightOffset = HallData[1].HallPosn_mm - HallData[1].HallPosn_mm_lastread;
-}
+void fn_Position ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ:
+            ((POSN*) (param->ptr))->LeftAbsolute = HallData[0].HallPosn_mm;
+            ((POSN*) (param->ptr))->LeftOffset = HallData[0].HallPosn_mm - HallData[0].HallPosn_mm_lastread;
+            ((POSN*) (param->ptr))->RightAbsolute = HallData[1].HallPosn_mm;
+            ((POSN*) (param->ptr))->RightOffset = HallData[1].HallPosn_mm - HallData[1].HallPosn_mm_lastread;
+            break;
 
-void PostWrite_setposnupdate(PROTOCOL_STAT *s){
-    HallData[0].HallPosn_mm_lastread = Position.LeftAbsolute;
-    HallData[1].HallPosn_mm_lastread = Position.RightAbsolute;
+        case FN_TYPE_POST_WRITE:
+            HallData[0].HallPosn_mm_lastread = ((POSN*) (param->ptr))->LeftAbsolute;
+            HallData[1].HallPosn_mm_lastread = ((POSN*) (param->ptr))->RightAbsolute;
+            break;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,21 +263,25 @@ void PostWrite_setposnupdate(PROTOCOL_STAT *s){
 
 POSN_INCR PositionIncr;
 
-void PostWrite_incrementposition(PROTOCOL_STAT *s){
-    // if switching to control type POSITION,
-    if ((control_type != CONTROL_TYPE_POSITION) || !enable) {
-        control_type = CONTROL_TYPE_POSITION;
-        // then make sure we won't rush off somwehere strange
-        // by setting our wanted posn to where we currently are...
-        PreWrite_enable(s);
+void fn_PositionIncr ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_POST_WRITE:
+            // if switching to control type POSITION,
+            if ((control_type != CONTROL_TYPE_POSITION) || !enable) {
+                control_type = CONTROL_TYPE_POSITION;
+                // then make sure we won't rush off somwehere strange
+                // by setting our wanted posn to where we currently are...
+                fn_enable( s, param, FN_TYPE_PRE_WRITE); // TODO: I don't like calling this with a param entry which does not fit to the handler..
+            }
+
+            enable = 1;
+            timeout = 0;
+
+            // increment our wanted position
+            PosnData.wanted_posn_mm[0] += ((POSN_INCR*) (param->ptr))->Left;
+            PosnData.wanted_posn_mm[1] += ((POSN_INCR*) (param->ptr))->Right;
+            break;
     }
-
-    enable = 1;
-    timeout = 0;
-
-    // increment our wanted position
-    PosnData.wanted_posn_mm[0] += PositionIncr.Left;
-    PosnData.wanted_posn_mm[1] += PositionIncr.Right;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -277,16 +300,21 @@ POSN_DATA PosnData = {
 
 POSN RawPosition;
 
-void PreRead_getrawposnupdate(PROTOCOL_STAT *s){
-    RawPosition.LeftAbsolute = HallData[0].HallPosn;
-    RawPosition.LeftOffset = HallData[0].HallPosn - HallData[0].HallPosn_lastread;
-    RawPosition.RightAbsolute = HallData[1].HallPosn;
-    RawPosition.RightOffset = HallData[1].HallPosn - HallData[1].HallPosn_lastread;
-}
 
-void PostWrite_setrawposnupdate(PROTOCOL_STAT *s){
-    HallData[0].HallPosn_lastread = RawPosition.LeftAbsolute;
-    HallData[1].HallPosn_lastread = RawPosition.RightAbsolute;
+void fn_RawPosition ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ:
+            ((POSN*) (param->ptr))->LeftAbsolute = HallData[0].HallPosn;
+            ((POSN*) (param->ptr))->LeftOffset = HallData[0].HallPosn - HallData[0].HallPosn_lastread;
+            ((POSN*) (param->ptr))->RightAbsolute = HallData[1].HallPosn;
+            ((POSN*) (param->ptr))->RightOffset = HallData[1].HallPosn - HallData[1].HallPosn_lastread;
+            break;
+
+        case FN_TYPE_POST_WRITE:
+            HallData[0].HallPosn_lastread = ((POSN*) (param->ptr))->LeftAbsolute;
+            HallData[1].HallPosn_lastread = ((POSN*) (param->ptr))->RightAbsolute;
+            break;
+    }
 }
 
 #endif
@@ -323,49 +351,36 @@ PWM_DATA PWMData = {
 
 extern int pwms[2];
 
-void PreWrite_setpwms(PROTOCOL_STAT *s){
-    PreWrite_enable(s);
-    enable = 1;
-    control_type = CONTROL_TYPE_PWM;
-    timeout = 0;
-}
+void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_WRITE:
+            fn_enable( s, param, FN_TYPE_PRE_WRITE); // TODO: I don't like calling this with a param entry which does not fit to the handler..
+            enable = 1;
+            control_type = CONTROL_TYPE_PWM;
+            timeout = 0;
+            break;
 
-void PostReceivedread_setpwms(PROTOCOL_STAT *s) {
-    PreWrite_enable(s);
-    enable = 1;
-    control_type = CONTROL_TYPE_PWM;
-    timeout = 0;
+        case FN_TYPE_POST_READRESPONSE:
+            fn_PWMData( s, param, FN_TYPE_PRE_WRITE);
+            fn_PWMData( s, param, FN_TYPE_PRE_WRITE);
+            break;
 
-    for (int i = 0; i < 2; i++) {
-        if (PWMData.pwm[i] > PWMData.speed_max_power) {
-            PWMData.pwm[i] = PWMData.speed_max_power;
-        }
-        if (PWMData.pwm[i] < PWMData.speed_min_power) {
-            PWMData.pwm[i] = PWMData.speed_min_power;
-        }
-        if ((PWMData.pwm[i] > 0) && (PWMData.pwm[i] < PWMData.speed_minimum_pwm)) {
-            PWMData.pwm[i] = 0;
-        }
-        if ((PWMData.pwm[i] < 0) && (PWMData.pwm[i] > -PWMData.speed_minimum_pwm)) {
-            PWMData.pwm[i] = 0;
-        }
-    }
-}
-
-void PostWrite_setpwms(PROTOCOL_STAT *s) {
-    for (int i = 0; i < 2; i++) {
-        if (PWMData.pwm[i] > PWMData.speed_max_power) {
-            PWMData.pwm[i] = PWMData.speed_max_power;
-        }
-        if (PWMData.pwm[i] < PWMData.speed_min_power) {
-            PWMData.pwm[i] = PWMData.speed_min_power;
-        }
-        if ((PWMData.pwm[i] > 0) && (PWMData.pwm[i] < PWMData.speed_minimum_pwm)) {
-            PWMData.pwm[i] = 0;
-        }
-        if ((PWMData.pwm[i] < 0) && (PWMData.pwm[i] > -PWMData.speed_minimum_pwm)) {
-            PWMData.pwm[i] = 0;
-        }
+        case FN_TYPE_POST_WRITE:
+            for (int i = 0; i < 2; i++) {
+                if (((PWM_DATA*) (param->ptr))->pwm[i] > ((PWM_DATA*) (param->ptr))->speed_max_power) {
+                    ((PWM_DATA*) (param->ptr))->pwm[i] = ((PWM_DATA*) (param->ptr))->speed_max_power;
+                }
+                if (((PWM_DATA*) (param->ptr))->pwm[i] < ((PWM_DATA*) (param->ptr))->speed_min_power) {
+                    ((PWM_DATA*) (param->ptr))->pwm[i] = ((PWM_DATA*) (param->ptr))->speed_min_power;
+                }
+                if ((((PWM_DATA*) (param->ptr))->pwm[i] > 0) && (((PWM_DATA*) (param->ptr))->pwm[i] < ((PWM_DATA*) (param->ptr))->speed_minimum_pwm)) {
+                    ((PWM_DATA*) (param->ptr))->pwm[i] = 0;
+                }
+                if ((((PWM_DATA*) (param->ptr))->pwm[i] < 0) && (((PWM_DATA*) (param->ptr))->pwm[i] > -((PWM_DATA*) (param->ptr))->speed_minimum_pwm)) {
+                    ((PWM_DATA*) (param->ptr))->pwm[i] = 0;
+                }
+            }
+            break;
     }
 }
 
@@ -382,16 +397,20 @@ extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1,
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint16_t buzzerLen;
 
-void PostWrite_setbuzzer(PROTOCOL_STAT *s){
-    buzzerFreq      = BuzzerData.buzzerFreq;
-    buzzerLen       = BuzzerData.buzzerLen;
-    buzzerPattern   = BuzzerData.buzzerPattern;
-}
+void fn_BuzzerData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_POST_WRITE:
+            buzzerFreq      = ((BUZZER_DATA*) (param->ptr))->buzzerFreq;
+            buzzerLen       = ((BUZZER_DATA*) (param->ptr))->buzzerLen;
+            buzzerPattern   = ((BUZZER_DATA*) (param->ptr))->buzzerPattern;
+            break;
 
-void PreRead_getbuzzer(PROTOCOL_STAT *s){
-    BuzzerData.buzzerFreq       = buzzerFreq;
-    BuzzerData.buzzerLen        = buzzerLen;
-    BuzzerData.buzzerPattern    = buzzerPattern;
+        case FN_TYPE_PRE_READ:
+            ((BUZZER_DATA*) (param->ptr))->buzzerFreq       = buzzerFreq;
+            ((BUZZER_DATA*) (param->ptr))->buzzerLen        = buzzerLen;
+            ((BUZZER_DATA*) (param->ptr))->buzzerPattern    = buzzerPattern;
+            break;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -399,89 +418,93 @@ void PreRead_getbuzzer(PROTOCOL_STAT *s){
 
 SUBSCRIBEDATA SubscribeData =  { .code=0, .period=0, .count=0, .som=0 };
 
-void PreWrite_setSubscription(PROTOCOL_STAT *s) {
-    // ensure clear in case of short write
-    memset(&SubscribeData, 0, sizeof(SubscribeData));
-}
-
-
-void PostWrite_setSubscription(PROTOCOL_STAT *s) {
-    int len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
-    int index = 0;
-
-    // Check if subscription already exists for this code
-    for (index = 0; index < len; index++) {
-        if(s->subscriptions[index].code == SubscribeData.code) {
+void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_WRITE:
+            // ensure clear in case of short write
+            memset(param->ptr, 0, param->len);
             break;
-        }
-    }
 
-    // If code was not found, look for vacant subscription slot
-    if(index == len) {
-        for (index = 0; index < len; index++) {
-            // NOTE: if you set a count of 0, or the count runs out, then
-            // the subscription will be overwritten later - 
-            // i.e. you effectively delete it....
-            if( s->subscriptions[index].code == 0 || s->subscriptions[index].count == 0 ) {
-                break;
+        case FN_TYPE_POST_WRITE:
+        case FN_TYPE_POST_READRESPONSE:
+            ;     // empty statement, labes must not be followed by declarations..
+            int len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
+            int index = 0;
+
+            // Check if subscription already exists for this code
+            for (index = 0; index < len; index++) {
+                if(s->subscriptions[index].code == ((SUBSCRIBEDATA*) (param->ptr))->code) {
+                    break;
+                }
             }
-        }
-    }
 
-    // Fill in new subscription when possible; Plausibility check for period
-    if(index < len || SubscribeData.period >= 10) {
-        s->subscriptions[index] = SubscribeData;
-        //char tmp[100];
-        //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, SubscribeData.code, SubscribeData.period, SubscribeData.count, SubscribeData.som);
-        //consoleLog(tmp);
-    } else {
-        // TODO. Inform sender??
-        consoleLog("no subscriptions available\n");
+            // If code was not found, look for vacant subscription slot
+            if(index == len) {
+                for (index = 0; index < len; index++) {
+                    // NOTE: if you set a count of 0, or the count runs out, then
+                    // the subscription will be overwritten later -
+                    // i.e. you effectively delete it....
+                    if( s->subscriptions[index].code == 0 || s->subscriptions[index].count == 0 ) {
+                        break;
+                    }
+                }
+            }
+
+            // Fill in new subscription when possible; Plausibility check for period
+            if(index < len || ((SUBSCRIBEDATA*) (param->ptr))->period >= 10) {
+                s->subscriptions[index] = *((SUBSCRIBEDATA*) (param->ptr));
+                //char tmp[100];
+                //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, ((SUBSCRIBEDATA*) (param->ptr))->code, ((SUBSCRIBEDATA*) (param->ptr))->period, ((SUBSCRIBEDATA*) (param->ptr))->count, ((SUBSCRIBEDATA*) (param->ptr))->som);
+                //consoleLog(tmp);
+            } else {
+                // TODO. Inform sender??
+                consoleLog("no subscriptions available\n");
+            }
+            break;
     }
 }
-
 
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
-    { 0x00, NULL, NULL, UI_NONE, &version,          sizeof(version),         PARAM_R,  NULL,                     NULL, NULL,               NULL,                        NULL },
+    { 0x00, NULL,                      NULL,  UI_NONE,  &version,                             sizeof(version),         PARAM_R,  NULL },
 #ifdef CONTROL_SENSOR
-    { 0x01, NULL, NULL, UI_NONE, &sensor_data,      sizeof(sensor_data),     PARAM_R,  NULL,                     NULL, NULL,               NULL,                        NULL },
+    { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_data,                         sizeof(sensor_data),     PARAM_R,  NULL },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, NULL, NULL, UI_NONE, (void *)&HallData, sizeof(HallData),        PARAM_R,  NULL,                     NULL, NULL,               NULL,                        NULL },
+    { 0x02, NULL,                      NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),        PARAM_R,  NULL },
 #endif
-    { 0x03, NULL, NULL, UI_NONE, &SpeedData,        sizeof(SpeedData),       PARAM_RW, PreRead_getspeeds,        NULL, PreWrite_setspeeds, NULL,                        NULL },
+    { 0x03, NULL,                      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),       PARAM_RW, fn_SpeedData },
 #ifdef HALL_INTERRUPTS
-    { 0x04, NULL, NULL, UI_NONE, &Position,         sizeof(Position),        PARAM_RW, PreRead_getposnupdate,    NULL, NULL,               PostWrite_setposnupdate,     NULL },
-    { 0x05, NULL, NULL, UI_NONE, &PositionIncr,     sizeof(PositionIncr),    PARAM_RW, NULL,                     NULL, NULL,               PostWrite_incrementposition, NULL },
-    { 0x06, NULL, NULL, UI_NONE, &PosnData,         sizeof(PosnData),        PARAM_RW, NULL,                     NULL, NULL,               NULL,                        NULL },
-    { 0x07, NULL, NULL, UI_NONE, &RawPosition,      sizeof(RawPosition),     PARAM_RW, PreRead_getrawposnupdate, NULL, NULL,               PostWrite_setrawposnupdate,  NULL },
+    { 0x04, NULL,                      NULL,  UI_NONE,  &Position,                            sizeof(Position),        PARAM_RW, fn_Position },
+    { 0x05, NULL,                      NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),    PARAM_RW, fn_PositionIncr },
+    { 0x06, NULL,                      NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),        PARAM_RW, NULL },
+    { 0x07, NULL,                      NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),     PARAM_RW, fn_RawPosition },
 #endif
-    { 0x09, NULL, NULL, UI_NONE, &enable,           sizeof(enable),          PARAM_RW, NULL,                     NULL, PreWrite_enable,    NULL,                        NULL },
-    { 0x0A, NULL, NULL, UI_NONE, &disablepoweroff,  sizeof(disablepoweroff), PARAM_RW, NULL,                     NULL, NULL,               NULL,                        NULL },
-    { 0x0B, NULL, NULL, UI_NONE, &debug_out,        sizeof(debug_out),       PARAM_RW, NULL,                     NULL, NULL,               NULL,                        NULL },
+    { 0x09, NULL,                      NULL,  UI_NONE,  &enable,                              sizeof(enable),          PARAM_RW, fn_enable },
+    { 0x0A, NULL,                      NULL,  UI_NONE,  &disablepoweroff,                     sizeof(disablepoweroff), PARAM_RW, NULL },
+    { 0x0B, NULL,                      NULL,  UI_NONE,  &debug_out,                           sizeof(debug_out),       PARAM_RW, NULL },
 #ifndef EXCLUDE_DEADRECKONER
-    { 0x0C, NULL, NULL, UI_NONE, &xytPosn,          sizeof(xytPosn),         PARAM_RW, NULL,                     NULL, NULL,               NULL,                        NULL },
+    { 0x0C, NULL,                      NULL,  UI_NONE,  &xytPosn,                             sizeof(xytPosn),         PARAM_RW, NULL },
 #endif
-    { 0x0D, NULL, NULL, UI_NONE, &PWMData,          sizeof(PWMData),         PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
-    { 0x0E, NULL, NULL, UI_NONE, &(PWMData.pwm),    sizeof(PWMData.pwm),     PARAM_RW, NULL,                     NULL, PreWrite_setpwms,   PostWrite_setpwms,           PostReceivedread_setpwms },
-    { 0x21, NULL, NULL, UI_NONE, &BuzzerData,       sizeof(BuzzerData),      PARAM_RW, PreRead_getbuzzer,        NULL, NULL,               PostWrite_setbuzzer,         NULL },
-    { 0x22, NULL, NULL, UI_NONE, &SubscribeData,    sizeof(SubscribeData),   PARAM_RW, NULL,                     NULL, PreWrite_setSubscription,               PostWrite_setSubscription,   PostWrite_setSubscription },
+    { 0x0D, NULL,                      NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),         PARAM_RW, fn_PWMData },
+    { 0x0E, NULL,                      NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),     PARAM_RW, fn_PWMData },
+    { 0x21, NULL,                      NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),      PARAM_RW, fn_BuzzerData },
+    { 0x22, NULL,                      NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),   PARAM_RW, fn_SubscribeData },
 
 #ifdef FLASH_STORAGE
-    { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_writeflash, NULL },  // write this with CURRENT_MAGIC to commit to flash
+    { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short),           PARAM_RW, fn_FlashContentMagic },  // write this with CURRENT_MAGIC to commit to flash
 
-    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &FlashContent.PositionKpx100,         sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL },
-    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &FlashContent.PositionKix100,         sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL }, // pid params for Position
-    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &FlashContent.PositionKdx100,         sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL },
-    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &FlashContent.PositionPWMLimit,       sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL }, // e.g. 200
+    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &FlashContent.PositionKpx100,         sizeof(short),           PARAM_RW, fn_FlashContentPID },
+    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &FlashContent.PositionKix100,         sizeof(short),           PARAM_RW, fn_FlashContentPID }, // pid params for Position
+    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &FlashContent.PositionKdx100,         sizeof(short),           PARAM_RW, fn_FlashContentPID },
+    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &FlashContent.PositionPWMLimit,       sizeof(short),           PARAM_RW, fn_FlashContentPID }, // e.g. 200
 
-    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &FlashContent.SpeedKpx100,            sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL },
-    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &FlashContent.SpeedKix100,            sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL }, // pid params for Speed
-    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &FlashContent.SpeedKdx100,            sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL },
-    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_PID,       NULL }, // e.g. 20
-    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &FlashContent.MaxCurrLim,             sizeof(short), PARAM_RW, NULL, NULL, NULL, PostWrite_Cur_Limit, NULL }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
-    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short), PARAM_RW, NULL, NULL, NULL, NULL,                NULL } // e.g. 20
+    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &FlashContent.SpeedKpx100,            sizeof(short),           PARAM_RW, fn_FlashContentPID },
+    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &FlashContent.SpeedKix100,            sizeof(short),           PARAM_RW, fn_FlashContentPID }, // pid params for Speed
+    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &FlashContent.SpeedKdx100,            sizeof(short),           PARAM_RW, fn_FlashContentPID },
+    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short),           PARAM_RW, fn_FlashContentPID }, // e.g. 20
+    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &FlashContent.MaxCurrLim,             sizeof(short),           PARAM_RW, fn_FlashContentMaxCurrLim }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
+    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short),           PARAM_RW, NULL } // e.g. 20
 #endif
 };
 
@@ -500,8 +523,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].preread) params[i].preread(s);
-                    // NOTE: re-uses the msg object (part of stats)
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ ); // NOTE: re-uses the msg object (part of stats)
                     unsigned char *src = params[i].ptr;
                     for (int j = 0; j < params[i].len; j++){
                         writevals->content[j] = *(src++);
@@ -510,7 +532,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
                     // send back with 'read' command plus data like write.
                     protocol_post(s, msg);
-                    if (params[i].postread) params[i].postread(s);
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ );
                     break;
                 }
             }
@@ -528,7 +550,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].receivedread) params[i].receivedread(s);
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READRESPONSE );
 
                     unsigned char *dest = params[i].ptr;
                     // ONLY copy what we have, else we're stuffing random data in.
@@ -537,7 +559,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     for (int j = 0; ((j < params[i].len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];
                     }
-
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READRESPONSE );
                     break;
                 }
             }
@@ -566,7 +588,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].prewrite) params[i].prewrite(s);
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_WRITE );
                     // NOTE: re-uses the msg object (part of stats)
                     unsigned char *dest = params[i].ptr;
 
@@ -581,7 +603,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     writevals->content[0] = 1; // say we wrote it
                     // send back with 'write' command with no data.
                     protocol_post(s, msg);
-                    if (params[i].postwrite) params[i].postwrite(s);
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_WRITE );
                     break;
                 }
             }
