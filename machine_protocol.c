@@ -75,7 +75,7 @@ static void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value);
 
 
 // private to us
-static void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI);
+static void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI, unsigned char som);
 static void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI);
 static int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
 static void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), PROTOCOL_MSG2 *msg);
@@ -99,126 +99,192 @@ void protocol_init(PROTOCOL_STAT *s){
 void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
 
     switch(s->state){
-        case PROTOCOL_STATE_BADCHAR:
-        case PROTOCOL_STATE_IDLE:
-            if ((byte == PROTOCOL_SOM_ACK) || (byte == PROTOCOL_SOM_NOACK)){
-                s->curr_msg.SOM = byte;
-                s->last_char_time = HAL_GetTick();
-                s->state = PROTOCOL_STATE_WAIT_CI;
-                s->CS = 0;
+    case PROTOCOL_STATE_BADCHAR:
+    case PROTOCOL_STATE_IDLE:
+        if ((byte == PROTOCOL_SOM_ACK) || (byte == PROTOCOL_SOM_NOACK)){
+            s->curr_msg.SOM = byte;
+            s->last_char_time = HAL_GetTick();
+            s->state = PROTOCOL_STATE_WAIT_CI;
+            s->CS = 0;
+        } else {
+            if (s->allow_ascii){
+                //////////////////////////////////////////////////////
+                // if the byte was NOT SOM (02), then treat it as an
+                // ascii protocol byte.  BOTH protocol can co-exist
+                ascii_byte(s, byte );
+                //////////////////////////////////////////////////////
             } else {
-                if (s->allow_ascii){
-                    //////////////////////////////////////////////////////
-                    // if the byte was NOT SOM (02), then treat it as an
-                    // ascii protocol byte.  BOTH protocol can co-exist
-                    ascii_byte(s, byte );
-                    //////////////////////////////////////////////////////
-                } else {
-                    s->last_char_time = HAL_GetTick();
-                    s->state = PROTOCOL_STATE_BADCHAR;
-                }
+                s->last_char_time = HAL_GetTick();
+                s->state = PROTOCOL_STATE_BADCHAR;
             }
-            break;
-        case PROTOCOL_STATE_WAIT_CI:
-            s->last_char_time = HAL_GetTick();
-            s->curr_msg.CI = byte;
-            s->CS += byte;
-            s->state = PROTOCOL_STATE_WAIT_LEN;
-            break;
+        }
+        break;
 
-        case PROTOCOL_STATE_WAIT_LEN:
-            s->last_char_time = HAL_GetTick();
-            s->curr_msg.len = byte;
-            s->count = 0;
-            s->CS += byte;
-            s->state = PROTOCOL_STATE_WAIT_END;
-            break;
-        case PROTOCOL_STATE_WAIT_END:
-            s->last_char_time = HAL_GetTick();
-            s->curr_msg.bytes[s->count++] = byte;
-            s->CS += byte;
+    case PROTOCOL_STATE_WAIT_CI:
+        s->last_char_time = HAL_GetTick();
+        s->curr_msg.CI = byte;
+        s->CS += byte;
+        s->state = PROTOCOL_STATE_WAIT_LEN;
+        break;
 
-            if (s->count == s->curr_msg.len+1){
-                s->last_char_time = 0;
-                switch(s->curr_msg.bytes[0]){
-                    case PROTOCOL_CMD_ACK:
-                        if (s->send_state == PROTOCOL_ACK_TX_WAITING){
-                            if (s->curr_msg.CI == s->curr_send_msg_withAck.CI){
-                                s->last_send_time = 0;
-                                s->send_state = PROTOCOL_ACK_TX_IDLE;
-                                // if we got ack, then try to send a next message
-                                int txcount = mpTxQueued(&s->TxBufferACK);
-                                if (txcount){
-                                    // send from tx queue
-                                    protocol_send(s, NULL);
-                                }
-                            } else {
-                                // ignore
-                                s->unwantedacks++;
-                                // 'if an ACK is received which contains a CI different to the last sent message, the ACK will be ignored. (?? implications??)'
+    case PROTOCOL_STATE_WAIT_LEN:
+        s->last_char_time = HAL_GetTick();
+        s->curr_msg.len = byte;
+        s->count = 0;
+        s->CS += byte;
+        s->state = PROTOCOL_STATE_WAIT_END;
+        break;
+
+    case PROTOCOL_STATE_WAIT_END:
+        s->last_char_time = HAL_GetTick();
+        s->curr_msg.bytes[s->count++] = byte;
+        s->CS += byte;
+
+        if (s->count == s->curr_msg.len+1){
+            s->last_char_time = 0;
+
+            switch(s->curr_msg.SOM) {
+            case PROTOCOL_SOM_ACK:
+                switch(s->curr_msg.bytes[0]) {
+                case PROTOCOL_CMD_ACK:
+                    if (s->send_state == PROTOCOL_ACK_TX_WAITING){
+                        if (s->curr_msg.CI == s->ack.curr_send_msg.CI){
+                            s->ack.last_send_time = 0;
+                            s->send_state = PROTOCOL_ACK_TX_IDLE;
+                            // if we got ack, then try to send a next message
+                            int txcount = mpTxQueued(&s->ack.TxBuffer);
+                            if (txcount){
+                                // send from tx queue
+                                protocol_send(s, NULL);
                             }
                         } else {
                             // ignore
-                            // sort of:
-                            // 'if an ACK is received which contains the same CI as the last ACK, the ACK will be ignored.'
-                            s->unwantedacks++;
+                            s->ack.counters.unwantedacks++;
+                            // 'if an ACK is received which contains a CI different to the last sent message, the ACK will be ignored. (?? implications??)'
                         }
-                        break;
-                    case PROTOCOL_CMD_NACK:
-                        // 'If an end receives a NACK, it should resend the last message with the same CI, up to 2 retries'
-                        if (s->send_state == PROTOCOL_ACK_TX_WAITING){
-                            // ignore CI
-                            if (s->retries > 0){
-                                protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
-                                s->last_send_time = HAL_GetTick();
-                                s->retries--;
-                            } else {
-                                s->send_state = PROTOCOL_ACK_TX_IDLE;
-                                // if we run out of retries, then try to send a next message
-                                int txcount = mpTxQueued(&s->TxBufferACK);
-                                if (txcount){
-                                    // send from tx queue
-                                    protocol_send(s, NULL);
-                                }
-                            }
+                    } else {
+                        // ignore, sort of:
+                        // 'if an ACK is received which contains the same CI as the last ACK, the ACK will be ignored.'
+                        s->ack.counters.unwantedacks++;
+                    }
+                    break;
+
+                case PROTOCOL_CMD_NACK:
+                    // 'If an end receives a NACK, it should resend the last message with the same CI, up to 2 retries'
+                    if (s->send_state == PROTOCOL_ACK_TX_WAITING){
+                        // ignore CI
+                        if (s->ack.retries > 0){
+                            s->ack.counters.txRetries++;
+                            protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
+                            s->ack.last_send_time = HAL_GetTick();
+                            s->ack.retries--;
                         } else {
-                            // unsolicited NACK received?
-                            s->unwantednacks++;
-                            // ignore
+                            s->send_state = PROTOCOL_ACK_TX_IDLE;
+                            s->ack.counters.txFailed++;
+                            // if we run out of retries, then try to send a next message
+                            int txcount = mpTxQueued(&s->ack.TxBuffer);
+                            if (txcount){
+                                // send from tx queue
+                                protocol_send(s, NULL);
+                            }
                         }
+                    } else {
+                        // unsolicited NACK received?
+                        s->ack.counters.unwantednacks++;
+                        // ignore
+                    }
+                    break;
+                default:
+                    if (s->CS != 0){
+                        // Checksum invalid. Complain and Discard.
+                        protocol_send_nack(s->send_serial_data, s->curr_msg.CI, s->curr_msg.SOM);
                         break;
-                    default:
-                        if (s->CS != 0){
-                            protocol_send_nack(s->send_serial_data, s->curr_msg.CI);
-                        } else {
-                            unsigned char *lastCIStream = &s->lastRXCI_NOACK;
-                            if(s->curr_msg.SOM == PROTOCOL_SOM_ACK){
-                                protocol_send_ack(s->send_serial_data, s->curr_msg.CI);
-                                lastCIStream = &s->lastRXCI_ACK;
-                            }
-                            // 'if a message is received with the same CI as the last received message, ACK will be sent, but the message discarded.'
-                            if ((*lastCIStream) != s->curr_msg.CI){
-                                protocol_process_message(s, &(s->curr_msg));
-                            }
-                            if( s->curr_msg.CI < (*lastCIStream)) {
-                                s->missingRXmessages -= 1;
-                            } else {
-                                s->missingRXmessages += s->curr_msg.CI - ((*lastCIStream) + 1);
-                            }
-                            (*lastCIStream) = s->curr_msg.CI;
-                        }
+                    }
+
+                    if (s->ack.lastRXCI == s->curr_msg.CI) {
+                        // 'if a message is received with the same CI as the last received message, ACK will be sent, but the message discarded.'
+                        protocol_send_ack(s->send_serial_data, s->curr_msg.CI);
                         break;
+                    }
+
+                    if( s->curr_msg.CI < s->ack.lastRXCI) {
+                        // CI is smaller than a received message. Probably Overflow of CI. (Other case would resending of previous lost message. Shouldn't happen.)
+                        s->ack.lastRXCI = s->ack.lastRXCI - 256; // Max value of char is 255
+                    }
+
+                    // Add to rxMissing Counter, when CIs where skipped
+                    s->ack.counters.rxMissing += s->curr_msg.CI - (s->ack.lastRXCI + 1);
+
+                    // process message
+                    protocol_send_ack(s->send_serial_data, s->curr_msg.CI);
+                    s->ack.lastRXCI = s->curr_msg.CI;
+                    s->ack.counters.rx++;
+                    protocol_process_message(s, &(s->curr_msg));
+                    break;
                 }
-                s->state = PROTOCOL_STATE_IDLE;
+                break;
+
+            case PROTOCOL_SOM_NOACK:
+                switch(s->curr_msg.bytes[0]) {
+                case PROTOCOL_CMD_ACK:
+                    // We shouldn't get ACKs in the NoACK protocol..
+                    s->noack.counters.unwantedacks++;
+                    break;
+
+                case PROTOCOL_CMD_NACK:
+                    // 'If an end receives a NACK, it should resend the last message with the same CI, up to 2 retries'
+                    if (s->noack.retries > 0){
+                        s->noack.counters.txRetries++;
+                        protocol_send_raw(s->send_serial_data, &s->noack.curr_send_msg);
+                        s->noack.retries--;
+                    } else {
+                        s->noack.counters.txFailed++;
+                        // if we run out of retries, then try to send a next message
+                        int txcount = mpTxQueued(&s->noack.TxBuffer);
+                        if (txcount){
+                            // send from tx queue
+                            protocol_send(s, NULL);
+                        }
+                    }
+                    break;
+                default:
+                    if (s->CS != 0){
+                        // Checksum invalid. Complain and Discard.
+                        protocol_send_nack(s->send_serial_data, s->curr_msg.CI, s->curr_msg.SOM);
+                        break;
+                    }
+
+                    if (s->noack.lastRXCI == s->curr_msg.CI) {
+                        // if a message is received with the same CI as the last received message, the message is discarded.
+                        break;
+                    }
+
+                    if( s->curr_msg.CI < s->noack.lastRXCI) {
+                        // CI is smaller than a received message. Probably Overflow of CI. (Other case would resending of previous lost message. Shouldn't happen.)
+                        s->noack.lastRXCI = s->noack.lastRXCI - 256; // Max value of char is 255
+                    }
+
+                    // Add to rxMissing Counter, when CIs where skipped
+                    s->noack.counters.rxMissing += s->curr_msg.CI - (s->noack.lastRXCI + 1);
+
+                    // process message
+                    s->noack.lastRXCI = s->curr_msg.CI;
+                    s->noack.counters.rx++;
+                    protocol_process_message(s, &(s->curr_msg));
+                    break;
+                }
+                break;
             }
-            break;
+            s->state = PROTOCOL_STATE_IDLE;
+        }
+        break;
     }
 }
 
 
 // private
-void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI){
-    char tmp[] = { PROTOCOL_SOM_ACK, CI, 1, PROTOCOL_CMD_NACK, 0 };
+void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI, unsigned char som){
+    char tmp[] = { som, CI, 1, PROTOCOL_CMD_NACK, 0 };
     protocol_send_raw(send_serial_data, (PROTOCOL_MSG2 *)tmp);
 }
 
@@ -239,7 +305,7 @@ int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
 
 
     if(msg->SOM == PROTOCOL_SOM_ACK) {
-        int txcount = mpTxQueued(&s->TxBufferACK);
+        int txcount = mpTxQueued(&s->ack.TxBuffer);
         if ((s->send_state != PROTOCOL_ACK_TX_WAITING) && !txcount){
 
             return protocol_send(s, msg);
@@ -249,13 +315,13 @@ int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
         int total = msg->len + 1; // +1 len
 
         if (txcount + total >= MACHINE_PROTOCOL_TX_BUFFER_SIZE-2) {
-            s->TxBufferACK.overflow++;
+            s->ack.TxBuffer.overflow++;
             return -1;
         }
 
         char *src = (char *) &(msg->len);
         for (int i = 0; i < total; i++) {
-            mpPutTx(&s->TxBufferACK, *(src++));
+            mpPutTx(&s->ack.TxBuffer, *(src++));
         }
 
         return 1; // added to queue
@@ -277,19 +343,21 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
 
         } else if(msg->SOM == PROTOCOL_SOM_ACK && s->send_state == PROTOCOL_ACK_TX_IDLE) {
             // Idling (not waiting for ACK), send the Message directly
-            memcpy(&s->curr_send_msg_withAck, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
-            s->curr_send_msg_withAck.CI = ++(s->lastTXCI_ACK);
-            protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
+            memcpy(&s->ack.curr_send_msg, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
+            s->ack.curr_send_msg.CI = ++(s->ack.lastTXCI);
+            s->ack.counters.tx++;
+            protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
-            s->last_send_time = HAL_GetTick();
-            s->retries = 2;
+            s->ack.last_send_time = HAL_GetTick();
+            s->ack.retries = 2;
             return 0;
 
         } else if (msg->SOM == PROTOCOL_SOM_NOACK) {
             // Send Message without ACK immediately
-            memcpy(&s->curr_send_msg_noAck, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
-            s->curr_send_msg_noAck.CI = ++(s->lastTXCI_NOACK);
-            protocol_send_raw(s->send_serial_data, &s->curr_send_msg_noAck);
+            memcpy(&s->noack.curr_send_msg, msg, 1 + 1 + 1 + msg->len); // SOM + CI + Len + Payload
+            s->noack.curr_send_msg.CI = ++(s->noack.lastTXCI);
+            s->noack.counters.tx++;
+            protocol_send_raw(s->send_serial_data, &s->noack.curr_send_msg);
             return 0;
 
         } else {
@@ -299,25 +367,27 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
     } else {
         // No Message was given, work on Buffers then..
 
-        if(s->send_state == PROTOCOL_STATE_IDLE && mpTxQueued(&s->TxBufferACK)) {
+        if(s->send_state == PROTOCOL_STATE_IDLE && mpTxQueued(&s->ack.TxBuffer)) {
             // Make sure we are not waiting for another ACK. Check if There is something in the buffer.
-            mpGetTxMsg(&s->TxBufferACK, &s->curr_send_msg_withAck.len);
-            s->curr_send_msg_withAck.SOM = PROTOCOL_SOM_ACK;
-            s->curr_send_msg_withAck.CI = ++(s->lastTXCI_ACK);
-            protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
+            mpGetTxMsg(&s->ack.TxBuffer, &s->ack.curr_send_msg.len);
+            s->ack.curr_send_msg.SOM = PROTOCOL_SOM_ACK;
+            s->ack.curr_send_msg.CI = ++(s->ack.lastTXCI);
+            s->ack.counters.tx++;
+            protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
-            s->last_send_time = HAL_GetTick();
-            s->retries = 2;
+            s->ack.last_send_time = HAL_GetTick();
+            s->ack.retries = 2;
             return 0;
 
         } else {
             // Do the other queue
-            int ismsg = mpGetTxMsg(&s->TxBufferNoACK, &s->curr_send_msg_noAck.len);
+            int ismsg = mpGetTxMsg(&s->noack.TxBuffer, &s->noack.curr_send_msg.len);
             if (ismsg){
                 // Queue has message waiting
-                s->curr_send_msg_noAck.SOM = PROTOCOL_SOM_NOACK;
-                s->curr_send_msg_noAck.CI = ++(s->lastTXCI_NOACK);
-                protocol_send_raw(s->send_serial_data, &s->curr_send_msg_noAck);
+                s->noack.curr_send_msg.SOM = PROTOCOL_SOM_NOACK;
+                s->noack.curr_send_msg.CI = ++(s->noack.lastTXCI);
+                s->noack.counters.tx++;
+                protocol_send_raw(s->send_serial_data, &s->noack.curr_send_msg);
                 return 0;
             }
         }
@@ -348,12 +418,13 @@ void protocol_tick(PROTOCOL_STAT *s){
 
 
     if(s->send_state == PROTOCOL_ACK_TX_WAITING) {
-        if ((s->last_tick_time - s->last_send_time) > s->timeout1){
+        if ((s->last_tick_time - s->ack.last_send_time) > s->timeout1){
             // 'If an end does not receive an ACK response within (TIMEOUT1), it should resend the last message with the same CI, up to 2 retries'
-            if (s->retries > 0){
-                protocol_send_raw(s->send_serial_data, &s->curr_send_msg_withAck);
-                s->last_send_time = HAL_GetTick();
-                s->retries--;
+            if (s->ack.retries > 0){
+                s->ack.counters.txRetries++;
+                protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
+                s->ack.last_send_time = HAL_GetTick();
+                s->ack.retries--;
             } else {
                 // if we run out of retries, then try to send a next message
                 s->send_state = PROTOCOL_ACK_TX_IDLE;
@@ -372,7 +443,7 @@ void protocol_tick(PROTOCOL_STAT *s){
             // 'implement a mode where non SOM characters between messages cause (TIMEOUT2) to be started,
             // resulting in a _NACK with CI of last received message + 1_.'
             if ((s->last_tick_time - s->last_char_time) > s->timeout2){
-                protocol_send_nack(s->send_serial_data, s->curr_msg.CI+1);
+                protocol_send_nack(s->send_serial_data, s->curr_msg.CI+1, s->curr_msg.SOM);
                 s->last_char_time = 0;
                 s->state = PROTOCOL_STATE_IDLE;
             }
@@ -383,7 +454,7 @@ void protocol_tick(PROTOCOL_STAT *s){
             // exceeds (TIMEOUT2), the incomming message should be discarded,
             // and a NACK should be sent with the CI of the message in progress or zero if no CI received yet'
             if ((s->last_tick_time - s->last_char_time) > s->timeout2){
-                protocol_send_nack(s->send_serial_data, s->curr_msg.CI);
+                protocol_send_nack(s->send_serial_data, s->curr_msg.CI, s->curr_msg.SOM);
                 s->last_char_time = 0;
                 s->state = PROTOCOL_STATE_IDLE;
             }

@@ -353,6 +353,7 @@ extern int pwms[2];
 
 void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
     switch (fn_type) {
+        case FN_TYPE_PRE_READRESPONSE:
         case FN_TYPE_PRE_WRITE:
             fn_enable( s, param, FN_TYPE_PRE_WRITE); // TODO: I don't like calling this with a param entry which does not fit to the handler..
             enable = 1;
@@ -361,10 +362,6 @@ void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
             break;
 
         case FN_TYPE_POST_READRESPONSE:
-            fn_PWMData( s, param, FN_TYPE_PRE_WRITE);
-            fn_PWMData( s, param, FN_TYPE_PRE_WRITE);
-            break;
-
         case FN_TYPE_POST_WRITE:
             for (int i = 0; i < 2; i++) {
                 if (((PWM_DATA*) (param->ptr))->pwm[i] > ((PWM_DATA*) (param->ptr))->speed_max_power) {
@@ -451,7 +448,7 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
             }
 
             // Fill in new subscription when possible; Plausibility check for period
-            if(index < len || ((SUBSCRIBEDATA*) (param->ptr))->period >= 10) {
+            if(index < len && ((SUBSCRIBEDATA*) (param->ptr))->period >= 10) {
                 s->subscriptions[index] = *((SUBSCRIBEDATA*) (param->ptr));
                 //char tmp[100];
                 //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, ((SUBSCRIBEDATA*) (param->ptr))->code, ((SUBSCRIBEDATA*) (param->ptr))->period, ((SUBSCRIBEDATA*) (param->ptr))->count, ((SUBSCRIBEDATA*) (param->ptr))->som);
@@ -464,17 +461,71 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x22 and 0x23 ProtocolcountData
+
+PROTOCOLCOUNT ProtocolcountData =  { .rx = 0 };
+
+void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ:
+            ProtocolcountData.rx                  = s->ack.counters.rx                  + s->noack.counters.rx;
+            ProtocolcountData.rxMissing           = s->ack.counters.rxMissing           + s->noack.counters.rxMissing;
+            ProtocolcountData.tx                  = s->ack.counters.tx                  + s->noack.counters.tx;
+            ProtocolcountData.txFailed            = s->ack.counters.txFailed            + s->noack.counters.txFailed;
+            ProtocolcountData.txRetries           = s->ack.counters.txRetries           + s->noack.counters.txRetries;
+            ProtocolcountData.unwantedacks        = s->ack.counters.unwantedacks        + s->noack.counters.unwantedacks;
+            ProtocolcountData.unknowncommands     = s->ack.counters.unknowncommands     + s->noack.counters.unknowncommands;
+            ProtocolcountData.unplausibleresponse = s->ack.counters.unplausibleresponse + s->noack.counters.unplausibleresponse;
+            ProtocolcountData.unwantednacks       = s->ack.counters.unwantednacks       + s->noack.counters.unwantednacks;
+            break;
+
+        case FN_TYPE_POST_WRITE:
+            s->ack.counters = ProtocolcountData;
+            s->noack.counters = ProtocolcountData;
+            break;
+    }
+}
+
+void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ:
+            ProtocolcountData = s->ack.counters;
+            break;
+
+        case FN_TYPE_POST_WRITE:
+            s->ack.counters = ProtocolcountData;
+            break;
+    }
+}
+
+void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ:
+            ProtocolcountData = s->noack.counters;
+            break;
+
+        case FN_TYPE_POST_WRITE:
+            s->noack.counters = ProtocolcountData;
+            break;
+    }
+}
+
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
+    // Protocol Relevant Parameters
     { 0x00, NULL,                      NULL,  UI_NONE,  &version,                             sizeof(version),         PARAM_R,  NULL },
+    { 0x22, NULL,                      NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),   PARAM_RW, fn_SubscribeData },
+    { 0x23, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),   PARAM_RW, fn_ProtocolcountDataSum },
+    { 0x24, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),   PARAM_RW, fn_ProtocolcountDataAck },
+    { 0x25, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),   PARAM_RW, fn_ProtocolcountDataNoack },
+
 #ifdef CONTROL_SENSOR
     { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_data,                         sizeof(sensor_data),     PARAM_R,  NULL },
 #endif
 #ifdef HALL_INTERRUPTS
     { 0x02, NULL,                      NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),        PARAM_R,  NULL },
-#endif
     { 0x03, NULL,                      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),       PARAM_RW, fn_SpeedData },
-#ifdef HALL_INTERRUPTS
     { 0x04, NULL,                      NULL,  UI_NONE,  &Position,                            sizeof(Position),        PARAM_RW, fn_Position },
     { 0x05, NULL,                      NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),    PARAM_RW, fn_PositionIncr },
     { 0x06, NULL,                      NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),        PARAM_RW, NULL },
@@ -489,7 +540,6 @@ PARAMSTAT params[] = {
     { 0x0D, NULL,                      NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),         PARAM_RW, fn_PWMData },
     { 0x0E, NULL,                      NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),     PARAM_RW, fn_PWMData },
     { 0x21, NULL,                      NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),      PARAM_RW, fn_BuzzerData },
-    { 0x22, NULL,                      NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),   PARAM_RW, fn_SubscribeData },
 
 #ifdef FLASH_STORAGE
     { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short),           PARAM_RW, fn_FlashContentMagic },  // write this with CURRENT_MAGIC to commit to flash
@@ -565,7 +615,11 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             }
             // parameter code not found
             if (i == sizeof(params)/sizeof(params[0])){
-                s->unplausibleresponse++;
+                if(msg->SOM == PROTOCOL_SOM_ACK) {
+                    s->ack.counters.unplausibleresponse++;
+                } else {
+                    s->noack.counters.unplausibleresponse++;
+                }
             }
             break;
         }
@@ -579,8 +633,11 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             }
             // parameter code not found
             if (i == sizeof(params)/sizeof(params[0])){
-                s->unplausibleresponse++;
-            }
+                if(msg->SOM == PROTOCOL_SOM_ACK) {
+                    s->ack.counters.unplausibleresponse++;
+                } else {
+                    s->noack.counters.unplausibleresponse++;
+                }                        }
             break;
         }
 
@@ -635,12 +692,19 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
 
         case PROTOCOL_CMD_UNKNOWN:
             // Do nothing, otherwise endless loop is entered.
-            s->unknowncommands++;
+            if(msg->SOM == PROTOCOL_SOM_ACK) {
+                s->ack.counters.unknowncommands++;
+            } else {
+                s->noack.counters.unknowncommands++;
+            }
             break;
 
         default:
-            s->unknowncommands++;
-            writevals->cmd = PROTOCOL_CMD_UNKNOWN;
+            if(msg->SOM == PROTOCOL_SOM_ACK) {
+                s->ack.counters.unknowncommands++;
+            } else {
+                s->noack.counters.unknowncommands++;
+            }            writevals->cmd = PROTOCOL_CMD_UNKNOWN;
             msg->len = 1;
             protocol_post(s, msg);
         break;
