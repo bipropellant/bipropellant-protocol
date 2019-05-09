@@ -164,34 +164,41 @@ typedef struct tag_SUBSCRIBEDATA {
 
 } SUBSCRIBEDATA;
 
+typedef struct tag_PROTOCOLCOUNT {
+    unsigned long rx;              // Count of received messages (valid CS)
+    unsigned long rxMissing;       // If message IDs went missing..
+    unsigned long tx;              // Count of sent messages (ACK, NACK and retries do not count)
+    unsigned int  txRetries;       // how often were messages resend?
+    unsigned int  txFailed;        // TX Messages which couldn't be deliveredr. No retries left.
+
+    unsigned int  unwantedacks;              // count of unwated ACK messages
+    unsigned int  unwantednacks;             // count of unwanted NACK messges
+    unsigned int  unknowncommands;           // count of messages with unknown commands
+    unsigned int  unplausibleresponse;       // count of unplausible replies
+} PROTOCOLCOUNT;
+
+typedef struct tag_PROTOCOLSTATE {
+    PROTOCOL_MSG2 curr_send_msg;             // transmit message storage
+    char retries;                            // number of retries left to send message
+    int lastTXCI;                            // CI of last sent message
+    int lastRXCI;                            // CI of last received message in ACKed stream
+    unsigned long last_send_time;            // last time a message requiring an ACK was sent
+
+    PROTOCOLCOUNT counters;                  // Statistical data of the protocol performance
+    MACHINE_PROTOCOL_TX_BUFFER TxBuffer;     // Buffer for Messages to be sent
+} PROTOCOLSTATE;
 
 
 typedef struct tag_PROTOCOL_STAT {
     char allow_ascii;                     // If set to 0, ascii protocol is not used
-    unsigned long last_send_time;         // last time a message requiring an ACK was sent
     unsigned long last_tick_time;         // last time the tick function was called
-
-    char state;                           // state used in protocol_byte to receive packages
+    char state;                           // state used in protocol_byte to receive messages
     unsigned long last_char_time;         // last time a character was received
     unsigned char CS;                     // temporary storage to calculate Checksum
     unsigned char count;                  // index pointing to last received byte
-    unsigned int nonsync;                 // not used?
     PROTOCOL_MSG2 curr_msg;               // received message storage
-    unsigned char lastRXCI_ACK;           // CI of last received message in ACKed stream
-    unsigned char lastRXCI_NOACK;         // CI of last received message in NOACKed stream
 
-    unsigned int unwantedacks;            // count of unwated ACK messages
-    unsigned int unwantednacks;           // count of unwanted NACK messges
-    unsigned int unknowncommands;         // count of messages wit unknown commands
-    unsigned int unplausibleresponse;     // count of unplausible replies
-    unsigned int missingRXmessages;       // count of missing RX messages
-
-    char send_state;                      // message transmission state
-    PROTOCOL_MSG2 curr_send_msg_withAck;  // transmit message storage (for messages with ACK)
-    PROTOCOL_MSG2 curr_send_msg_noAck;    // transmit message storage (for messages without ACK)
-    char retries;                         // number of retries left to send message
-    unsigned char lastTXCI_ACK;           // CI of last sent message in ACKed stream
-    unsigned char lastTXCI_NOACK;         // CI of last sent message in NOACKed stream
+    char send_state;                      // message transmission state (ACK_TX_WAITING or IDLE)
 
     int timeout1;                         // ACK has to be received in this time
     int timeout2;                         // when receiving a packet, longest time between characters
@@ -199,11 +206,10 @@ typedef struct tag_PROTOCOL_STAT {
     int (*send_serial_data)( unsigned char *data, int len );       // Function Pointer to sending function
     int (*send_serial_data_wait)( unsigned char *data, int len );
 
-    MACHINE_PROTOCOL_TX_BUFFER TxBufferACK;    // Buffer for Messages with ACK to be sent
-    MACHINE_PROTOCOL_TX_BUFFER TxBufferNoACK;  // Buffer for Messages without ACK to be sent
+    SUBSCRIBEDATA subscriptions[10];      // Subscriptions to periodic messages
 
-    SUBSCRIBEDATA subscriptions[10];           // Subscriptions to periodic messages
-
+    PROTOCOLSTATE ack;
+    PROTOCOLSTATE noack;
 } PROTOCOL_STAT;
 
 #pragma pack(pop)
