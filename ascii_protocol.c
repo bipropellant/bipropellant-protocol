@@ -29,9 +29,7 @@
 #ifdef SOFTWARE_SERIAL
     #include "softwareserial.h"
 #endif
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
-    #include "bldc.h"
-#endif
+#include "bldc.h"
 #ifdef FLASH_STORAGE
     #include "flashcontent.h"
     #include "flashaccess.h"
@@ -339,7 +337,6 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
 #endif
             break;
 
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
         case 'C':
         case 'c':
             processed = 1;
@@ -353,7 +350,6 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
                 (int)(electrical_measurements.motors[1].dcAmps*1000.0), (int)(electrical_measurements.motors[1].dcAmpsAvg*1000.0), electrical_measurements.motors[1].r1, electrical_measurements.motors[1].r2
             );
             break;
-#endif
 
 #ifndef SKIP_STM32SPECIFIC
         case 'G':

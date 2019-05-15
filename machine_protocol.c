@@ -37,9 +37,7 @@
 #ifdef SOFTWARE_SERIAL
     #include "softwareserial.h"
 #endif
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
-    #include "bldc.h"
-#endif
+#include "bldc.h"
 #ifdef FLASH_STORAGE
     #include "flashcontent.h"
     #include "flashaccess.h"

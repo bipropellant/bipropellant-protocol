@@ -26,9 +26,7 @@
 #ifdef HALL_INTERRUPTS
     #include "hallinterrupts.h"
 #endif
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
-    #include "bldc.h"
-#endif
+#include "bldc.h"
 #ifdef FLASH_STORAGE
     #include "flashcontent.h"
     #include "flashaccess.h"
@@ -122,9 +120,7 @@ static int version = 1;
 extern void change_PID_constants();
 extern void init_PID_control();
 
-#ifndef SKIP_ELECTRICAL_MEASUREMENTS
-    extern volatile ELECTRICAL_PARAMS electrical_measurements;
-#endif
+extern volatile ELECTRICAL_PARAMS electrical_measurements;
 
 void fn_FlashContentMagic ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type ) {
     switch (fn_type) {
@@ -514,47 +510,48 @@ void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
     // Protocol Relevant Parameters
-    { 0x00, NULL,                      NULL,  UI_NONE,  &version,                             sizeof(version),         PARAM_R,  NULL },
-    { 0x22, NULL,                      NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),   PARAM_RW, fn_SubscribeData },
-    { 0x23, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),   PARAM_RW, fn_ProtocolcountDataSum },
-    { 0x24, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),   PARAM_RW, fn_ProtocolcountDataAck },
-    { 0x25, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),   PARAM_RW, fn_ProtocolcountDataNoack },
+    { 0x00, NULL,                      NULL,  UI_NONE,  &version,                             sizeof(version),           PARAM_R,  NULL },
+    { 0x22, NULL,                      NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
+    { 0x23, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
+    { 0x24, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataAck },
+    { 0x25, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataNoack },
 
 #ifdef CONTROL_SENSOR
-    { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_data,                         sizeof(sensor_data),     PARAM_R,  NULL },
+    { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_data,                         sizeof(sensor_data),       PARAM_R,  NULL },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, NULL,                      NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),        PARAM_R,  NULL },
-    { 0x03, NULL,                      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),       PARAM_RW, fn_SpeedData },
-    { 0x04, NULL,                      NULL,  UI_NONE,  &Position,                            sizeof(Position),        PARAM_RW, fn_Position },
-    { 0x05, NULL,                      NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),    PARAM_RW, fn_PositionIncr },
-    { 0x06, NULL,                      NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),        PARAM_RW, NULL },
-    { 0x07, NULL,                      NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),     PARAM_RW, fn_RawPosition },
+    { 0x02, NULL,                      NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),          PARAM_R,  NULL },
+    { 0x03, NULL,                      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),         PARAM_RW, fn_SpeedData },
+    { 0x04, NULL,                      NULL,  UI_NONE,  &Position,                            sizeof(Position),          PARAM_RW, fn_Position },
+    { 0x05, NULL,                      NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),      PARAM_RW, fn_PositionIncr },
+    { 0x06, NULL,                      NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),          PARAM_RW, NULL },
+    { 0x07, NULL,                      NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),       PARAM_RW, fn_RawPosition },
 #endif
-    { 0x09, NULL,                      NULL,  UI_NONE,  &enable,                              sizeof(enable),          PARAM_RW, fn_enable },
-    { 0x0A, NULL,                      NULL,  UI_NONE,  &disablepoweroff,                     sizeof(disablepoweroff), PARAM_RW, NULL },
-    { 0x0B, NULL,                      NULL,  UI_NONE,  &debug_out,                           sizeof(debug_out),       PARAM_RW, NULL },
+    { 0x08, NULL,                      NULL,  UI_NONE,  (void *)&electrical_measurements,     sizeof(ELECTRICAL_PARAMS), PARAM_R,  NULL },
+    { 0x09, NULL,                      NULL,  UI_NONE,  &enable,                              sizeof(enable),            PARAM_RW, fn_enable },
+    { 0x0A, NULL,                      NULL,  UI_NONE,  &disablepoweroff,                     sizeof(disablepoweroff),   PARAM_RW, NULL },
+    { 0x0B, NULL,                      NULL,  UI_NONE,  &debug_out,                           sizeof(debug_out),         PARAM_RW, NULL },
 #ifndef EXCLUDE_DEADRECKONER
-    { 0x0C, NULL,                      NULL,  UI_NONE,  &xytPosn,                             sizeof(xytPosn),         PARAM_RW, NULL },
+    { 0x0C, NULL,                      NULL,  UI_NONE,  &xytPosn,                             sizeof(xytPosn),           PARAM_RW, NULL },
 #endif
-    { 0x0D, NULL,                      NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),         PARAM_RW, fn_PWMData },
-    { 0x0E, NULL,                      NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),     PARAM_RW, fn_PWMData },
-    { 0x21, NULL,                      NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),      PARAM_RW, fn_BuzzerData },
+    { 0x0D, NULL,                      NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),           PARAM_RW, fn_PWMData },
+    { 0x0E, NULL,                      NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),       PARAM_RW, fn_PWMData },
+    { 0x21, NULL,                      NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
 
 #ifdef FLASH_STORAGE
-    { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short),           PARAM_RW, fn_FlashContentMagic },  // write this with CURRENT_MAGIC to commit to flash
+    { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short),             PARAM_RW, fn_FlashContentMagic },  // write this with CURRENT_MAGIC to commit to flash
 
-    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &FlashContent.PositionKpx100,         sizeof(short),           PARAM_RW, fn_FlashContentPID },
-    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &FlashContent.PositionKix100,         sizeof(short),           PARAM_RW, fn_FlashContentPID }, // pid params for Position
-    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &FlashContent.PositionKdx100,         sizeof(short),           PARAM_RW, fn_FlashContentPID },
-    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &FlashContent.PositionPWMLimit,       sizeof(short),           PARAM_RW, fn_FlashContentPID }, // e.g. 200
+    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &FlashContent.PositionKpx100,         sizeof(short),             PARAM_RW, fn_FlashContentPID },
+    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &FlashContent.PositionKix100,         sizeof(short),             PARAM_RW, fn_FlashContentPID }, // pid params for Position
+    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &FlashContent.PositionKdx100,         sizeof(short),             PARAM_RW, fn_FlashContentPID },
+    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &FlashContent.PositionPWMLimit,       sizeof(short),             PARAM_RW, fn_FlashContentPID }, // e.g. 200
 
-    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &FlashContent.SpeedKpx100,            sizeof(short),           PARAM_RW, fn_FlashContentPID },
-    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &FlashContent.SpeedKix100,            sizeof(short),           PARAM_RW, fn_FlashContentPID }, // pid params for Speed
-    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &FlashContent.SpeedKdx100,            sizeof(short),           PARAM_RW, fn_FlashContentPID },
-    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short),           PARAM_RW, fn_FlashContentPID }, // e.g. 20
-    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &FlashContent.MaxCurrLim,             sizeof(short),           PARAM_RW, fn_FlashContentMaxCurrLim }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
-    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short),           PARAM_RW, NULL } // e.g. 20
+    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &FlashContent.SpeedKpx100,            sizeof(short),             PARAM_RW, fn_FlashContentPID },
+    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &FlashContent.SpeedKix100,            sizeof(short),             PARAM_RW, fn_FlashContentPID }, // pid params for Speed
+    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &FlashContent.SpeedKdx100,            sizeof(short),             PARAM_RW, fn_FlashContentPID },
+    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short),             PARAM_RW, fn_FlashContentPID }, // e.g. 20
+    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &FlashContent.MaxCurrLim,             sizeof(short),             PARAM_RW, fn_FlashContentMaxCurrLim }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
+    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short),             PARAM_RW, NULL } // e.g. 20
 #endif
 };
 
