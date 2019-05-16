@@ -282,6 +282,15 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
 
 // private
 void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI, unsigned char som){
+
+    // Enforce valid SOM, otherwise Message is discarded by protocol_send_raw.
+    // PROTOCOL_SOM_ACK is chosen to ensure backwards compatibilty.
+    // If ANY SOM could be send, it would be identified as a badchar, which would trigger a NACK with the same SOM.
+    // That's an infinite loop of NACKs with invalid SOM.
+    if(som != PROTOCOL_SOM_ACK && som != PROTOCOL_SOM_NOACK) {
+        som = PROTOCOL_SOM_ACK;
+    }
+
     char tmp[] = { som, CI, 1, PROTOCOL_CMD_NACK, 0 };
     protocol_send_raw(send_serial_data, (PROTOCOL_MSG2 *)tmp);
 }
@@ -396,6 +405,9 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
 
 // private
 void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), PROTOCOL_MSG2 *msg){
+
+    // Enforce validity of SOM.
+    if(msg->SOM == PROTOCOL_SOM_ACK || msg->SOM == PROTOCOL_SOM_NOACK) {
     unsigned char CS = 0;
     int i;
     CS -= msg->CI;
@@ -406,6 +418,7 @@ void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), 
     }
     msg->bytes[i] = CS;
     send_serial_data((unsigned char *) msg, msg->len+4);
+}
 }
 
 
