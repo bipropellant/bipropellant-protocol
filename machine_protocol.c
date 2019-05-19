@@ -55,7 +55,12 @@
 static unsigned char mpGetTxByte(MACHINE_PROTOCOL_TX_BUFFER *buf);
 static char mpGetTxMsg(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char *dest);
 static void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value);
-//
+
+///////////////////////////////////////////////////
+// from protocol.c
+extern PARAMSTAT params[];
+extern int paramcount;
+
 //////////////////////////////////////////////////////////////////
 
 
@@ -90,6 +95,14 @@ void protocol_init(PROTOCOL_STAT *s){
     s->allow_ascii = 1;
     s->send_serial_data = nosend;
     s->send_serial_data_wait = nosend;
+
+    // Check if all lengths in params can actually be received
+    for (int i = 0; i < paramcount; i++) {
+        if( params[i].len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
+            params[i].len = 0;  // Set to 0, so nothing can be received
+            while(1) {};        // Crash the processor intentionally.
+        }
+    }
 }
 
 // called from main.c

@@ -22,6 +22,7 @@
 #include <stdint.h>
 
 //// control structures used in firmware
+#pragma pack(push, 1)
 typedef struct tag_POSN_DATA {
     // these get set
     long wanted_posn_mm[2];
@@ -34,9 +35,11 @@ typedef struct tag_POSN_DATA {
     long posn_diff_mm[2];
     long posn_speed_demand[2];
 } POSN_DATA;
+#pragma pack(pop)
 
-extern POSN_DATA PosnData;
+POSN_DATA PosnData;
 
+#pragma pack(push, 1)
 typedef struct tag_SPEED_DATA {
     // these get set
     long wanted_speed_mm_per_sec[2];
@@ -50,9 +53,11 @@ typedef struct tag_SPEED_DATA {
     long speed_diff_mm_per_sec[2];
     long speed_power_demand[2];
 } SPEED_DATA;
+#pragma pack(pop)
 
-extern SPEED_DATA SpeedData;
+SPEED_DATA SpeedData;
 
+#pragma pack(push, 1)
 typedef struct tag_PWM_DATA {
     // these get set
     long pwm[2];
@@ -62,22 +67,25 @@ typedef struct tag_PWM_DATA {
     int speed_min_power; // minimum speed (to get wheels moving)
     int speed_minimum_pwm; // below this, we don't ask it to do anything
 } PWM_DATA;
+#pragma pack(pop)
 
-extern PWM_DATA PWMData;
+PWM_DATA PWMData;
 
 
 
 
+#pragma pack(push, 1)
 typedef struct {
     uint8_t buzzerFreq;
     uint8_t buzzerPattern;
     uint16_t buzzerLen;
 } BUZZER_DATA;
+#pragma pack(pop)
 
-extern BUZZER_DATA BuzzerData;
+BUZZER_DATA BuzzerData;
 
 
-extern int control_type;
+int control_type;
 #define CONTROL_TYPE_NONE 0
 #define CONTROL_TYPE_POSITION 1
 #define CONTROL_TYPE_SPEED 2
@@ -106,35 +114,45 @@ typedef struct tag_PROTOCOL_MSG2 {
     unsigned char bytes[255];  // variable number of data bytes, with a checksum on the end, cmd is first
     // checksum such that sum of bytes CI to CS is zero
 } PROTOCOL_MSG2;
+#pragma pack(pop)
 
+#pragma pack(push, 1)
 typedef struct tag_PROTOCOL_LEN_ONWARDS {
     unsigned char len; // len is len of ALL bytes to follow, including CS
-    unsigned char bytes[255];  // variable number of data bytes, with a checksum on the end, cmd is first
+    unsigned char bytes[sizeof( ((PROTOCOL_MSG2 *)0)->bytes )];  // variable number of data bytes, with a checksum on the end, cmd is first
 } PROTOCOL_LEN_ONWARDS;
+#pragma pack(pop)
 
 // content of 'bytes' above, for single byte commands
+#pragma pack(push, 1)
 typedef struct tag_PROTOCOL_BYTES {
     unsigned char cmd; //
-    unsigned char bytes[254];
+    unsigned char bytes[sizeof( ((PROTOCOL_MSG2 *)0)->bytes ) - sizeof(unsigned char)]; // cmd is part of bytes and needs to be substracted
 } PROTOCOL_BYTES;
+#pragma pack(pop)
 
 
-// content of 'bytes' above, for single byte commands
 #define PROTOCOL_CMD_READVAL 'R'
 #define PROTOCOL_CMD_READVALRESPONSE 'r'
+
+// content of 'bytes' above, for single byte commands
+#pragma pack(push, 1)
 typedef struct tag_PROTOCOL_BYTES_READVALS {
     unsigned char cmd; // 'R'
     unsigned char code; // code of value to read
 } PROTOCOL_BYTES_READVALS;
+#pragma pack(pop)
 
 #define PROTOCOL_CMD_WRITEVAL 'W'
 #define PROTOCOL_CMD_WRITEVALRESPONSE 'w'
+
+#pragma pack(push, 1)
 typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
     unsigned char cmd; // 'W'
     unsigned char code; // code of value to write
-    unsigned char content[252]; // value to write
+    unsigned char content[sizeof( ((PROTOCOL_MSG2 *)0)->bytes ) - sizeof(unsigned char) - sizeof(unsigned char)]; // cmd and code are part of bytes and need to be substracted
 } PROTOCOL_BYTES_WRITEVALS;
-
+#pragma pack(pop)
 
 
 //////////////////////////////////////////////////////////////////
@@ -155,15 +173,18 @@ typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
 
 //////////////////////////////////////////////////////////
 
+#pragma pack(push, 1)
 typedef struct tag_SUBSCRIBEDATA {
-    unsigned char code;              // code in protocol to refer to this
+    char code;                       // code in protocol to refer to this
     unsigned int period;             // how often should the information be sent?
     int count;                       // how many messages shall be sent? -1 for infinity
     char som;                        // which SOM shall be used? with or without ACK
     unsigned long next_send_time;    // last time a message requiring an ACK was sent
 
 } SUBSCRIBEDATA;
+#pragma pack(pop)
 
+#pragma pack(push, 1)
 typedef struct tag_PROTOCOLCOUNT {
     unsigned long rx;              // Count of received messages (valid CS)
     unsigned long rxMissing;       // If message IDs went missing..
@@ -176,6 +197,7 @@ typedef struct tag_PROTOCOLCOUNT {
     unsigned int  unknowncommands;           // count of messages with unknown commands
     unsigned int  unplausibleresponse;       // count of unplausible replies
 } PROTOCOLCOUNT;
+#pragma pack(pop)
 
 typedef struct tag_PROTOCOLSTATE {
     PROTOCOL_MSG2 curr_send_msg;             // transmit message storage
@@ -212,8 +234,6 @@ typedef struct tag_PROTOCOL_STAT {
     PROTOCOLSTATE noack;
 } PROTOCOL_STAT;
 
-#pragma pack(pop)
-
 
 ///////////////////////////////////////////////////
 // structure used to gather variables we want to read/write.
@@ -232,11 +252,10 @@ typedef struct tag_PROTOCOL_STAT {
 #define FN_TYPE_POST_READRESPONSE 6
 
 
-#pragma pack(push, 1)
 struct tag_PARAMSTAT;
 typedef struct tag_PARAMSTAT PARAMSTAT;
 
-typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type );
+typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len );
 
 
 struct tag_PARAMSTAT {
@@ -245,14 +264,12 @@ struct tag_PARAMSTAT {
     char *uistr;            // if non-null, used in ascii protocol to adjust with f<str>num<cr>
     char ui_type;           // only UI_NONE or UI_SHORT
     void *ptr;              // pointer to value
-    char len;               // length of value
+    int len;               // length of value
     char rw;                // PARAM_R or PARAM_RW
 
     PARAMSTAT_FN fn;        // function to handle events
 };
 
-
-#pragma pack(pop)
 
 
 /////////////////////////////////////////////////////////
@@ -278,25 +295,27 @@ struct tag_PARAMSTAT {
 /////////////////////////////////////////////////////////////////
 
 #pragma pack(push, 1)
-
 typedef struct tag_POSN {
     long LeftAbsolute;
     long RightAbsolute;
     long LeftOffset;
     long RightOffset;
 } POSN;
+#pragma pack(pop)
 
+#pragma pack(push, 1)
 typedef struct tag_POSN_INCR {
     long Left;
     long Right;
 } POSN_INCR;
-extern int enable_immediate;
 #pragma pack(pop)
 
+int enable_immediate;
 
-extern PROTOCOL_STAT sUSART2;
-extern PROTOCOL_STAT sUSART3;
-extern PROTOCOL_STAT sSoftwareSerial;
+
+PROTOCOL_STAT sUSART2;
+PROTOCOL_STAT sUSART3;
+PROTOCOL_STAT sSoftwareSerial;
 
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
@@ -328,6 +347,6 @@ int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 
 /////////////////////////////////////////////////////////////////
 // callback which can be used for "debugging"
-extern void (*debugprint)(const char str[]);
+void (*debugprint)(const char str[]);
 
 #endif
