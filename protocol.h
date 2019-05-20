@@ -313,10 +313,6 @@ typedef struct tag_POSN_INCR {
 int enable_immediate;
 
 
-PROTOCOL_STAT sUSART2;
-PROTOCOL_STAT sUSART3;
-PROTOCOL_STAT sSoftwareSerial;
-
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
 void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
@@ -331,7 +327,7 @@ void protocol_tick(PROTOCOL_STAT *s);
 
 /////////////////////////////////////////////////////////////////
 // initialize protocol
-void protocol_init(PROTOCOL_STAT *s);
+int protocol_init(PROTOCOL_STAT *s);
 
 /////////////////////////////////////////////////////////////////
 // processes ASCII characters

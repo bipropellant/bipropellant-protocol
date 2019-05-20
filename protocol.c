@@ -62,48 +62,6 @@ typedef struct tag_SPEEDS{
 static SPEEDS speedsx = {0,0};
 
 
-//////////////////////////////////////////////
-// specify where to send data out of with a function pointer.
-
-#ifdef SOFTWARE_SERIAL
-#include "softwareserial.h"
-
-PROTOCOL_STAT sSoftwareSerial = {
-    .send_serial_data=softwareserial_Send,
-    .send_serial_data_wait=softwareserial_Send_Wait,
-    .timeout1 = 500,
-    .timeout2 = 100,
-    .allow_ascii = 1
-};
-#endif
-
-#if defined(SERIAL_USART2_IT) && !defined(READ_SENSOR)
-
-extern int USART2_IT_send(unsigned char *data, int len);
-
-PROTOCOL_STAT sUSART2 = {
-    .send_serial_data=USART2_IT_send,
-    .send_serial_data_wait=USART2_IT_send,
-    .timeout1 = 500,
-    .timeout2 = 100,
-    .allow_ascii = 1
-};
-
-#endif
-
-#if defined(SERIAL_USART3_IT) && !defined(READ_SENSOR)
-
-extern int USART3_IT_send(unsigned char *data, int len);
-
-PROTOCOL_STAT sUSART3 = {
-    .send_serial_data=USART3_IT_send,
-    .send_serial_data_wait=USART3_IT_send,
-    .timeout1 = 500,
-    .timeout2 = 100,
-    .allow_ascii = 1
-};
-
-#endif
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////

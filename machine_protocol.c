@@ -88,7 +88,7 @@ int nosend( unsigned char *data, int len ){ return 0; };
 
 // called from main.c
 // externed in protocol.h
-void protocol_init(PROTOCOL_STAT *s){
+int protocol_init(PROTOCOL_STAT *s) {
     memset(s, 0, sizeof(*s));
     s->timeout1 = 500;
     s->timeout2 = 100;
@@ -100,9 +100,10 @@ void protocol_init(PROTOCOL_STAT *s){
     for (int i = 0; i < paramcount; i++) {
         if( params[i].len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
             params[i].len = 0;  // Set to 0, so nothing can be received
-            while(1) {};        // Crash the processor intentionally.
+            return 1;           // Failure
         }
     }
+    return 0;                   // Success
 }
 
 // called from main.c
