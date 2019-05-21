@@ -55,7 +55,12 @@
 static unsigned char mpGetTxByte(MACHINE_PROTOCOL_TX_BUFFER *buf);
 static char mpGetTxMsg(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char *dest);
 static void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value);
-//
+
+///////////////////////////////////////////////////
+// from protocol.c
+extern PARAMSTAT params[];
+extern int paramcount;
+
 //////////////////////////////////////////////////////////////////
 
 
@@ -83,13 +88,22 @@ int nosend( unsigned char *data, int len ){ return 0; };
 
 // called from main.c
 // externed in protocol.h
-void protocol_init(PROTOCOL_STAT *s){
+int protocol_init(PROTOCOL_STAT *s) {
     memset(s, 0, sizeof(*s));
     s->timeout1 = 500;
     s->timeout2 = 100;
     s->allow_ascii = 1;
     s->send_serial_data = nosend;
     s->send_serial_data_wait = nosend;
+
+    // Check if all lengths in params can actually be received
+    for (int i = 0; i < paramcount; i++) {
+        if( params[i].len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
+            params[i].len = 0;  // Set to 0, so nothing can be received
+            return 1;           // Failure
+        }
+    }
+    return 0;                   // Success
 }
 
 // called from main.c
