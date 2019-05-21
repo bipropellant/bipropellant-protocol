@@ -21,6 +21,10 @@
 #include "config.h"
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //// control structures used in firmware
 #pragma pack(push, 1)
 typedef struct tag_POSN_DATA {
@@ -37,7 +41,7 @@ typedef struct tag_POSN_DATA {
 } POSN_DATA;
 #pragma pack(pop)
 
-POSN_DATA PosnData;
+extern POSN_DATA PosnData;
 
 #pragma pack(push, 1)
 typedef struct tag_SPEED_DATA {
@@ -55,7 +59,7 @@ typedef struct tag_SPEED_DATA {
 } SPEED_DATA;
 #pragma pack(pop)
 
-SPEED_DATA SpeedData;
+extern SPEED_DATA SpeedData;
 
 #pragma pack(push, 1)
 typedef struct tag_PWM_DATA {
@@ -69,7 +73,7 @@ typedef struct tag_PWM_DATA {
 } PWM_DATA;
 #pragma pack(pop)
 
-PWM_DATA PWMData;
+extern PWM_DATA PWMData;
 
 
 
@@ -82,10 +86,10 @@ typedef struct {
 } BUZZER_DATA;
 #pragma pack(pop)
 
-BUZZER_DATA BuzzerData;
+extern BUZZER_DATA BuzzerData;
 
 
-int control_type;
+extern int control_type;
 #define CONTROL_TYPE_NONE 0
 #define CONTROL_TYPE_POSITION 1
 #define CONTROL_TYPE_SPEED 2
@@ -310,7 +314,7 @@ typedef struct tag_POSN_INCR {
 } POSN_INCR;
 #pragma pack(pop)
 
-int enable_immediate;
+extern int enable_immediate;
 
 
 /////////////////////////////////////////////////////////////////
@@ -343,6 +347,10 @@ int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 
 /////////////////////////////////////////////////////////////////
 // callback which can be used for "debugging"
-void (*debugprint)(const char str[]);
+extern void (*debugprint)(const char str[]);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
