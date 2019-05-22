@@ -169,6 +169,20 @@ void fn_enable ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) 
 // Variable & Functions for 0x01 sensor_data
 
 extern SENSOR_DATA sensor_data[2];
+
+// used to send only pertinent data, not the whole structure
+SENSOR_FRAME sensor_copy[2];
+
+void fn_SensorData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ:
+            // copy just sensor input data
+            sensor_copy[0] = sensor_data[0].complete;
+            sensor_copy[1] = sensor_data[1].complete;
+            break;
+    }
+}
+
 #endif
 
 #ifdef HALL_INTERRUPTS
@@ -502,7 +516,7 @@ PARAMSTAT params[] = {
     { 0x25, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataNoack },
 
 #ifdef CONTROL_SENSOR
-    { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_data,                         sizeof(sensor_data),       PARAM_R,  NULL },
+    { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_copy,                         sizeof(sensor_copy),       PARAM_R,  fn_SensorData },
 #endif
 #ifdef HALL_INTERRUPTS
     { 0x02, NULL,                      NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),          PARAM_R,  NULL },

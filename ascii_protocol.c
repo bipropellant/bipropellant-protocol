@@ -329,8 +329,8 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             sprintf(ascii_out,
                 "L: OK:%d Foot:%d Angle:%d Roll:%d Accel:%d\r\n"\
                 "R: OK:%d Foot:%d Angle:%d Roll:%d Accel:%d\r\n",
-                sensor_data[0].sensor_ok, (sensor_data[0].AA_55 == 0x55)?1:0, sensor_data[0].Angle, sensor_data[0].Roll, sensor_data[0].Accelleration,
-                sensor_data[1].sensor_ok, (sensor_data[1].AA_55 == 0x55)?1:0, sensor_data[1].Angle, sensor_data[1].Roll, sensor_data[1].Accelleration
+                sensor_data[0].sensor_ok, (sensor_data[0].complete.AA_55 == 0x55)?1:0, sensor_data[0].complete.Angle, sensor_data[0].complete.Roll, sensor_data[0].complete.Accelleration,
+                sensor_data[1].sensor_ok, (sensor_data[1].complete.AA_55 == 0x55)?1:0, sensor_data[1].complete.Angle, sensor_data[1].complete.Roll, sensor_data[1].complete.Accelleration
             );
 #else
             sprintf(ascii_out, "Sensor Data not available\r\n");
