@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 //// control structures used in firmware
-#pragma pack(push, 1)
+#pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_POSN_DATA {
     // these get set
     long wanted_posn_mm[2];
@@ -43,7 +43,7 @@ typedef struct tag_POSN_DATA {
 
 extern POSN_DATA PosnData;
 
-#pragma pack(push, 1)
+#pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_SPEED_DATA {
     // these get set
     long wanted_speed_mm_per_sec[2];
@@ -61,7 +61,7 @@ typedef struct tag_SPEED_DATA {
 
 extern SPEED_DATA SpeedData;
 
-#pragma pack(push, 1)
+#pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_PWM_DATA {
     // these get set
     long pwm[2];
@@ -188,7 +188,7 @@ typedef struct tag_SUBSCRIBEDATA {
 } SUBSCRIBEDATA;
 #pragma pack(pop)
 
-#pragma pack(push, 1)
+#pragma pack(push, 4) // all used data types are 4 byte
 typedef struct tag_PROTOCOLCOUNT {
     unsigned long rx;              // Count of received messages (valid CS)
     unsigned long rxMissing;       // If message IDs went missing..
@@ -298,7 +298,7 @@ struct tag_PARAMSTAT {
 //
 /////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 1)
+#pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_POSN {
     long LeftAbsolute;
     long RightAbsolute;
@@ -307,7 +307,7 @@ typedef struct tag_POSN {
 } POSN;
 #pragma pack(pop)
 
-#pragma pack(push, 1)
+#pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_POSN_INCR {
     long Left;
     long Right;
