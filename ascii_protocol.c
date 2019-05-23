@@ -442,6 +442,10 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+            snprintf(ascii_out, sizeof(ascii_out)-1,
+                "   S - timing stats\r\n");
+            s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 #endif
 
             snprintf(ascii_out, sizeof(ascii_out)-1,
@@ -535,6 +539,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             // already sent
             ascii_out[0] = 0;
             break;
+
+#ifdef HALL_INTERRUPTS
+        case 'S':
+        case 's': // display stats from main timing
+            // we don't have float printing
+            sprintf(ascii_out, "Main loop interval_us %d; lates %d, processing_us %d\r\n", 
+                (int)(timeStats.main_interval_ms * 1000), timeStats.main_late_count, (int)(timeStats.main_processing_ms*1000));
+            break;
+
+#endif
         case 'E':
         case 'e':
             if (len == 1){
