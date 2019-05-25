@@ -329,8 +329,8 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             sprintf(ascii_out,
                 "L: OK:%d Foot:%d Angle:%d Roll:%d Accel:%d\r\n"\
                 "R: OK:%d Foot:%d Angle:%d Roll:%d Accel:%d\r\n",
-                sensor_data[0].sensor_ok, (sensor_data[0].AA_55 == 0x55)?1:0, sensor_data[0].Angle, sensor_data[0].Roll, sensor_data[0].Accelleration,
-                sensor_data[1].sensor_ok, (sensor_data[1].AA_55 == 0x55)?1:0, sensor_data[1].Angle, sensor_data[1].Roll, sensor_data[1].Accelleration
+                sensor_data[0].sensor_ok, (sensor_data[0].complete.AA_55 == 0x55)?1:0, sensor_data[0].complete.Angle, sensor_data[0].complete.Roll, sensor_data[0].complete.Accelleration,
+                sensor_data[1].sensor_ok, (sensor_data[1].complete.AA_55 == 0x55)?1:0, sensor_data[1].complete.Angle, sensor_data[1].complete.Roll, sensor_data[1].complete.Accelleration
             );
 #else
             sprintf(ascii_out, "Sensor Data not available\r\n");
@@ -442,6 +442,10 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             snprintf(ascii_out, sizeof(ascii_out)-1,
                 "   H/C/G/Q -read Hall posn,speed/read Currents/read GPIOs/Quit immediate mode\r\n");
             s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
+
+            snprintf(ascii_out, sizeof(ascii_out)-1,
+                "   S - timing stats\r\n");
+            s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
 #endif
 
             snprintf(ascii_out, sizeof(ascii_out)-1,
@@ -535,6 +539,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             // already sent
             ascii_out[0] = 0;
             break;
+
+#ifdef HALL_INTERRUPTS
+        case 'S':
+        case 's': // display stats from main timing
+            // we don't have float printing
+            sprintf(ascii_out, "Main loop interval_us %d; lates %d, processing_us %d\r\n", 
+                (int)(timeStats.main_interval_ms * 1000), timeStats.main_late_count, (int)(timeStats.main_processing_ms*1000));
+            break;
+
+#endif
         case 'E':
         case 'e':
             if (len == 1){
