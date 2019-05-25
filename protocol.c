@@ -72,7 +72,7 @@ static SPEEDS speedsx = {0,0};
 void fn_preWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_WRITE:
-        case FN_TYPE_POST_READRESPONSE:
+        case FN_TYPE_PRE_READRESPONSE:
             // ensure clear in case of short write
             memset(param->ptr, 0, param->len);
             break;
