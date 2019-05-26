@@ -545,10 +545,10 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
             // we prepare a buffer here, an MODIFY the paramstat length to tell it how much to send! (evil!?).
             int first = 0;
             int count = 100;
-            if (len > 1) {
+            if (len > 0) {
                 first = content[0];
             }
-            if (len > 2) {
+            if (len > 1) {
                 count = content[1];
             }
 
