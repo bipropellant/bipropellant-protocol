@@ -250,7 +250,7 @@ typedef struct tag_PROTOCOL_STAT {
 #define PARAM_RW    3
 ///////////////////////////////////////////////////
 // defines for simple variable types.
-// generally: 
+// generally:
 // if first nibble is 1, second nibble is bytecount for single variable.
 // if second nibble is 2, second nibble is bytecount for each of two variables.
 // etc.
@@ -291,7 +291,7 @@ struct tag_PARAMSTAT {
     char *uistr;            // if non-null, used in ascii protocol to adjust with f<str>num<cr>
     char ui_type;           // only UI_NONE or UI_SHORT
     void *ptr;              // pointer to value
-    int len;               // length of value
+    int len;                // length of value
     char rw;                // PARAM_R or PARAM_RW
 
     PARAMSTAT_FN fn;        // function to handle events
@@ -368,6 +368,14 @@ int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 /////////////////////////////////////////////////////////////////
 // callback which can be used for "debugging"
 extern void (*debugprint)(const char str[]);
+
+/////////////////////////////////////////////////////////////////
+// Change variable at runtime
+int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw);
+
+/////////////////////////////////////////////////////////////////
+// Register new function handler at runtime
+PARAMSTAT_FN setParamHandler(unsigned char code, PARAMSTAT_FN callback);
 
 #endif
 
