@@ -51,7 +51,6 @@ int control_type = 0;
 //////////////////////////////////////////////
 // variables you want to read/write here. Only common used ones, specific ones below.
 
-extern uint8_t enable; // global variable for motor enable
 extern volatile uint32_t timeout; // global variable for timeout
 
 // gather two separate speed variables togther,
@@ -72,7 +71,7 @@ static SPEEDS speedsx = {0,0};
 void fn_preWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_WRITE:
-        case FN_TYPE_POST_READRESPONSE:
+        case FN_TYPE_PRE_READRESPONSE:
             // ensure clear in case of short write
             memset(param->ptr, 0, param->len);
             break;
@@ -132,7 +131,7 @@ void fn_FlashContentMaxCurrLim ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x09 enable
 
-/* see above, writes directly to extern enable */
+extern uint8_t enable; // global variable for motor enable
 
 //////////////////////////////////////////////
 // make values safe before we change enable...
@@ -211,8 +210,6 @@ void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len
             break;
 
         case FN_TYPE_PRE_WRITE:
-            fn_enable( s, param, FN_TYPE_PRE_WRITE, 0); // TODO: I don't like calling this with a param entry which does not fit to the handler..
-            enable = 1;
             control_type = CONTROL_TYPE_SPEED;
             timeout = 0;
             break;
@@ -338,8 +335,6 @@ void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len )
     switch (fn_type) {
         case FN_TYPE_PRE_READRESPONSE:
         case FN_TYPE_PRE_WRITE:
-            fn_enable( s, param, FN_TYPE_PRE_WRITE, 0); // TODO: I don't like calling this with a param entry which does not fit to the handler..
-            enable = 1;
             control_type = CONTROL_TYPE_PWM;
             timeout = 0;
             break;
