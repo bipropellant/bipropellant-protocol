@@ -519,33 +519,33 @@ void fn_xytPosn ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len )
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
     // Protocol Relevant Parameters
-    { 0x00, NULL,                      NULL,  UI_NONE,  &version,                             sizeof(version),           PARAM_R,  NULL },
-    { 0x22, NULL,                      NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
-    { 0x23, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
-    { 0x24, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataAck },
-    { 0x25, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataNoack },
+    { 0x00, "version",                 NULL,  UI_NONE,  &version,                             sizeof(version),           PARAM_R,  NULL },
+    { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
+    { 0x23, "protocol stats ack+noack", NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
+    { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataAck },
+    { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataNoack },
 
 #ifdef CONTROL_SENSOR
-    { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_copy,                         sizeof(sensor_copy),       PARAM_R,  fn_SensorData },
+    { 0x01, "sensor data",             NULL,  UI_NONE,  &sensor_copy,                         sizeof(sensor_copy),       PARAM_R,  fn_SensorData },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, NULL,                      NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),          PARAM_R,  NULL },
-    { 0x03, NULL,                      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),         PARAM_RW, fn_SpeedData },
-    { 0x04, NULL,                      NULL,  UI_NONE,  &Position,                            sizeof(Position),          PARAM_RW, fn_Position },
-    { 0x05, NULL,                      NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),      PARAM_RW, fn_PositionIncr },
-    { 0x06, NULL,                      NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),          PARAM_RW, fn_preWriteClear },
-    { 0x07, NULL,                      NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),       PARAM_RW, fn_RawPosition },
+    { 0x02, "hall data",               NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),          PARAM_R,  NULL },
+    { 0x03, "speed control mm/s",      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),         PARAM_RW, fn_SpeedData },
+    { 0x04, "hall position mm",        NULL,  UI_NONE,  &Position,                            sizeof(Position),          PARAM_RW, fn_Position },
+    { 0x05, "position control increment mm", NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),      PARAM_RW, fn_PositionIncr },
+    { 0x06, "position control mm",     NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),          PARAM_RW, fn_preWriteClear },
+    { 0x07, "hall position steps",     NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),       PARAM_RW, fn_RawPosition },
 #endif
-    { 0x08, NULL,                      NULL,  UI_NONE,  (void *)&electrical_measurements,     sizeof(ELECTRICAL_PARAMS), PARAM_R,  NULL },
-    { 0x09, NULL,                      NULL,  UI_NONE,  &enable,                              sizeof(enable),            PARAM_RW, fn_enable },
-    { 0x0A, NULL,                      NULL,  UI_NONE,  &disablepoweroff,                     sizeof(disablepoweroff),   PARAM_RW, fn_preWriteClear },
-    { 0x0B, NULL,                      NULL,  UI_NONE,  &debug_out,                           sizeof(debug_out),         PARAM_RW, fn_preWriteClear },
+    { 0x08, "electrical measurements", NULL,  UI_NONE,  (void *)&electrical_measurements,     sizeof(ELECTRICAL_PARAMS), PARAM_R,  NULL },
+    { 0x09, "enable motors",           NULL,  UI_NONE,  &enable,                              sizeof(enable),            PARAM_RW, fn_enable },
+    { 0x0A, "disable poweroff timer",  NULL,  UI_NONE,  &disablepoweroff,                     sizeof(disablepoweroff),   PARAM_RW, fn_preWriteClear },
+    { 0x0B, "enable console logs",     NULL,  UI_NONE,  &debug_out,                           sizeof(debug_out),         PARAM_RW, fn_preWriteClear },
 #ifndef EXCLUDE_DEADRECKONER
-    { 0x0C, NULL,                      NULL,  UI_NONE,  &xytPosn,                             sizeof(xytPosn),           PARAM_RW, fn_xytPosn },
+    { 0x0C, "read/clear xyt position", NULL,  UI_NONE,  &xytPosn,                             sizeof(xytPosn),           PARAM_RW, fn_xytPosn },
 #endif
-    { 0x0D, NULL,                      NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),           PARAM_RW, fn_PWMData },
-    { 0x0E, NULL,                      NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),       PARAM_RW, fn_PWMData },
-    { 0x21, NULL,                      NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
+    { 0x0D, "PWM control",             NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),           PARAM_RW, fn_PWMData },
+    { 0x0E, "simpler PWM",             NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),       PARAM_RW, fn_PWMData },
+    { 0x21, "buzzer",                  NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
 
 #ifdef FLASH_STORAGE
     { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short),             PARAM_RW, fn_FlashContentMagic },  // write this with CURRENT_MAGIC to commit to flash
