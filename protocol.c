@@ -27,10 +27,6 @@
     #include "hallinterrupts.h"
 #endif
 #include "bldc.h"
-#ifdef FLASH_STORAGE
-    #include "flashcontent.h"
-    #include "flashaccess.h"
-#endif
 #include "comms.h"
 #ifndef EXCLUDE_DEADRECKONER
     #include "deadreckoner.h"
@@ -87,49 +83,6 @@ void fn_preWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, uns
 
 static int version = 1;
 
-#ifdef FLASH_STORAGE
-////////////////////////////////////////////////////////////////////////////////////////////
-// Variable & Functions for 0x80 to 0xA0 FlashContent
-
-// from main.c
-extern void change_PID_constants();
-extern void init_PID_control();
-
-extern volatile ELECTRICAL_PARAMS electrical_measurements;
-
-void fn_FlashContentMagic ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
-    switch (fn_type) {
-        case FN_TYPE_POST_WRITE:
-            if (FlashContent.magic != CURRENT_MAGIC){
-                char temp[128];
-                sprintf(temp, "incorrect magic %d, should be %d\r\nFlash not written\r\n", FlashContent.magic, CURRENT_MAGIC);
-                consoleLog(temp);
-                FlashContent.magic = CURRENT_MAGIC;
-                return;
-            }
-            writeFlash( (unsigned char *)&FlashContent, sizeof(FlashContent) );
-            consoleLog("wrote flash\r\n");
-            break;
-    }
-}
-
-void fn_FlashContentPID ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
-    switch (fn_type) {
-        case FN_TYPE_POST_WRITE:
-            change_PID_constants();
-            break;
-    }
-}
-
-void fn_FlashContentMaxCurrLim ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
-    switch (fn_type) {
-        case FN_TYPE_POST_WRITE:
-            electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
-            break;
-    }
-}
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x09 enable
@@ -520,7 +473,7 @@ void fn_xytPosn ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned 
 ////////////////////////////////////////////////////////////
 // allows read of parameter descritpions and variable length
 // accepts (unsigned char first, unsigned char count) in read message!
-// data returned 
+// data returned
 typedef struct tag_descriptions {
     unsigned char first;
     unsigned char count_read;
@@ -610,7 +563,7 @@ PARAMSTAT params[] = {
     { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions,              0,                         PARAM_R,  fn_paramstat_descriptions },
     { 0x00, "version",                 NULL,  UI_LONG,  &version,                             sizeof(version),           PARAM_R,  NULL },
     { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
-    { 0x23, "protocol stats ack+noack", NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
+    { 0x23, "protocol stats ack+noack",NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
     { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataAck },
     { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataNoack },
 
@@ -621,7 +574,7 @@ PARAMSTAT params[] = {
     { 0x02, "hall data",               NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),          PARAM_R,  NULL },
     { 0x03, "speed control mm/s",      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),         PARAM_RW, fn_SpeedData },
     { 0x04, "hall position mm",        NULL,  UI_NONE,  &Position,                            sizeof(Position),          PARAM_RW, fn_Position },
-    { 0x05, "position control increment mm", NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),      PARAM_RW, fn_PositionIncr },
+    { 0x05, "position control increment mm",NULL,UI_NONE,&PositionIncr,                       sizeof(PositionIncr),      PARAM_RW, fn_PositionIncr },
     { 0x06, "position control mm",     NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),          PARAM_RW, fn_preWriteClear },
     { 0x07, "hall position steps",     NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),       PARAM_RW, fn_RawPosition },
 #endif
@@ -637,25 +590,72 @@ PARAMSTAT params[] = {
     { 0x21, "buzzer",                  NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
 
 #ifdef FLASH_STORAGE
-    { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short),             PARAM_RW, fn_FlashContentMagic },  // write this with CURRENT_MAGIC to commit to flash
+    { 0x80, "flash magic",             "m",   UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },  // write this with CURRENT_MAGIC to commit to flash
 
-    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &FlashContent.PositionKpx100,         sizeof(short),             PARAM_RW, fn_FlashContentPID },
-    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &FlashContent.PositionKix100,         sizeof(short),             PARAM_RW, fn_FlashContentPID }, // pid params for Position
-    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &FlashContent.PositionKdx100,         sizeof(short),             PARAM_RW, fn_FlashContentPID },
-    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &FlashContent.PositionPWMLimit,       sizeof(short),             PARAM_RW, fn_FlashContentPID }, // e.g. 200
+    { 0x81, "posn kp x 100",           "pkp", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
+    { 0x82, "posn ki x 100",           "pki", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // pid params for Position
+    { 0x83, "posn kd x 100",           "pkd", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
+    { 0x84, "posn pwm lim",            "pl",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // e.g. 200
 
-    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &FlashContent.SpeedKpx100,            sizeof(short),             PARAM_RW, fn_FlashContentPID },
-    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &FlashContent.SpeedKix100,            sizeof(short),             PARAM_RW, fn_FlashContentPID }, // pid params for Speed
-    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &FlashContent.SpeedKdx100,            sizeof(short),             PARAM_RW, fn_FlashContentPID },
-    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &FlashContent.SpeedPWMIncrementLimit, sizeof(short),             PARAM_RW, fn_FlashContentPID }, // e.g. 20
-    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &FlashContent.MaxCurrLim,             sizeof(short),             PARAM_RW, fn_FlashContentMaxCurrLim }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
-    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &FlashContent.HoverboardEnable,       sizeof(short),             PARAM_RW, fn_preWriteClear } // e.g. 20
+    { 0x85, "speed kp x 100",          "skp", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
+    { 0x86, "speed ki x 100",          "ski", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // pid params for Speed
+    { 0x87, "speed kd x 100",          "skd", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
+    { 0x88, "speed pwm incr lim",      "sl",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // e.g. 20
+    { 0x89, "max current limit x 100", "cl",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
+    { 0xA0, "hoverboard enable",       "he",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // e.g. 20
 #endif
+
+    { 0xF0, "temp0", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF1, "temp1", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF2, "temp2", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF3, "temp3", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF4, "temp4", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF5, "temp5", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF6, "temp6", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF7, "temp7", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF8, "temp8", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
+    { 0xF9, "temp9", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }  // Placeholder for application specific functions
 };
 
 int paramcount = sizeof(params)/sizeof(params[0]);
 
 
+/////////////////////////////////////////////
+// Change variable at runtime
+int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw) {
+
+    // Check if len can actually be received
+    if( len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
+        return 1;                           // Too long, Failure
+    }
+
+    for (int i = 0; i < paramcount; i++) {
+        if (params[i].code == code) {
+            params[i].ui_type = ui_type;
+            params[i].ptr = ptr;
+            params[i].len = len;
+            params[i].rw = rw;
+            return 0;                       // Success
+        }
+    }
+    return 1;                               // Not found, Failure
+}
+
+
+
+/////////////////////////////////////////////
+// Register new function handler at runtime
+PARAMSTAT_FN setParamHandler(unsigned char code, PARAMSTAT_FN callback) {
+    PARAMSTAT_FN old = NULL;
+
+    for (int i = 0; i < paramcount; i++) {
+        if (params[i].code == code) {
+            old = params[i].fn;
+            params[i].fn = callback;
+        }
+    }
+    return old;
+}
 
 /////////////////////////////////////////////
 // a complete machineprotocl message has been
@@ -732,7 +732,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     s->ack.counters.unplausibleresponse++;
                 } else {
                     s->noack.counters.unplausibleresponse++;
-                }                        
+                }
             }
             break;
         }
