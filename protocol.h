@@ -244,9 +244,25 @@ typedef struct tag_PROTOCOL_STAT {
 #define PARAM_R     1
 #define PARAM_RW    3
 ///////////////////////////////////////////////////
+// defines for simple variable types.
+// generally: 
+// if first nibble is 1, second nibble is bytecount for single variable.
+// if second nibble is 2, second nibble is bytecount for each of two variables.
+// etc.
+// if 2nd nibble is NOT a power of 2, all bets off -> custom type (note 2^0 = 1)
+// these are as yet not implemented....
 #define UI_NONE 0
-#define UI_SHORT 1
-
+#define UI_CHAR 0x11
+#define UI_SHORT 0x12
+#define UI_LONG 0x14
+#define UI_LONGLONG 0x18
+#define UI_2CHAR 0x21
+#define UI_2SHORT 0x22
+#define UI_2LONG 0x24
+#define UI_2LONGLONG 0x28
+// e.g.
+// #define UI_8CHAR 0x81
+// #define UI_POSN 0x03 - custom structure type.
 
 #define FN_TYPE_PRE_READ          1
 #define FN_TYPE_POST_READ         2
