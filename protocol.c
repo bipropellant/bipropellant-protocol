@@ -48,6 +48,9 @@ int control_type = 0;
 #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 
+// forward declaration
+extern int paramcount;
+extern PARAMSTAT params[];
 //////////////////////////////////////////////
 // variables you want to read/write here. Only common used ones, specific ones below.
 
@@ -513,12 +516,98 @@ void fn_xytPosn ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned 
 }
 #endif
 
+
+////////////////////////////////////////////////////////////
+// allows read of parameter descritpions and variable length
+// accepts (unsigned char first, unsigned char count) in read message!
+// data returned 
+typedef struct tag_descriptions {
+    unsigned char first;
+    unsigned char count_read;
+    char descriptions[251];
+} DESCRIPTIONS;
+DESCRIPTIONS paramstat_descriptions;
+typedef struct tag_description {
+    unsigned char len;    // overall length of THIS
+    unsigned char code;   // code from params
+    unsigned char var_len;// length of variable referenced
+    unsigned char var_type;// UI_NONE or UI_SHORT for the moment
+    char description[249];// nul term description
+    // could be expanded here, as len at the top.
+    // but 'description' above will be shorter than 249, so strucutre variabls can;t be used?
+} DESCRIPTION;
+
+void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ){
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ: {
+            // content[0] is the first entry to read.
+            // content[1] is max count of entries to read
+            // we prepare a buffer here, an MODIFY the paramstat length to tell it how much to send! (evil!?).
+            int first = 0;
+            int count = 100;
+            if (len > 1) {
+                first = content[0];
+            }
+            if (len > 2) {
+                count = content[1];
+            }
+
+            if (first >= paramcount) {
+                params[0].len = 0;
+                return;
+            }
+            if (first + count >= paramcount){
+                count = paramcount - first;
+            }
+
+            // now loop over requested entries until no more will fit in buffer,
+            // informing on start and count done.
+            int actual_count = 0;
+            int len_out = 0;
+            char *p = paramstat_descriptions.descriptions;
+            for (int i = first; i < first+count; i++){
+                int desc_len = 0;
+                if (params[i].description) {
+                    desc_len = strlen(params[i].description);
+                }
+                DESCRIPTION *d = (DESCRIPTION *)p;
+                if (len_out+sizeof(*d)-sizeof(d->description)+desc_len+1 > sizeof(paramstat_descriptions.descriptions)){
+                    break;
+                }
+                d->len = sizeof(*d)-sizeof(d->description)+desc_len+1;
+                d->code = params[i].code;
+                d->var_len = params[i].len;
+                d->var_type = params[i].ui_type;
+                if (desc_len) {
+                    strcpy(d->description, params[i].description);
+                } else {
+                    d->description[0] = 0;
+                }
+                p += d->len;
+                len_out = p - paramstat_descriptions.descriptions;
+                actual_count++;
+            }
+            paramstat_descriptions.first = first;
+            paramstat_descriptions.count_read = actual_count;
+            param->len = sizeof(DESCRIPTIONS) - sizeof(paramstat_descriptions.descriptions) + len_out;
+            break;
+        }
+
+        case FN_TYPE_POST_READ:
+            param->len = 0; // reset to zero
+            break;
+    }
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
     // Protocol Relevant Parameters
+    { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions,              0,                         PARAM_R,  fn_paramstat_descriptions },
     { 0x00, "version",                 NULL,  UI_NONE,  &version,                             sizeof(version),           PARAM_R,  NULL },
     { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
     { 0x23, "protocol stats ack+noack", NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
