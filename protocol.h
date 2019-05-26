@@ -260,6 +260,7 @@ typedef struct tag_PROTOCOL_STAT {
 #define UI_2SHORT 0x22
 #define UI_2LONG 0x24
 #define UI_2LONGLONG 0x28
+#define UI_3LONG 0x34
 // e.g.
 // #define UI_8CHAR 0x81
 // #define UI_POSN 0x03 - custom structure type.

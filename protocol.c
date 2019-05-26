@@ -608,7 +608,7 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 PARAMSTAT params[] = {
     // Protocol Relevant Parameters
     { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions,              0,                         PARAM_R,  fn_paramstat_descriptions },
-    { 0x00, "version",                 NULL,  UI_NONE,  &version,                             sizeof(version),           PARAM_R,  NULL },
+    { 0x00, "version",                 NULL,  UI_LONG,  &version,                             sizeof(version),           PARAM_R,  NULL },
     { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
     { 0x23, "protocol stats ack+noack", NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
     { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataAck },
@@ -626,14 +626,14 @@ PARAMSTAT params[] = {
     { 0x07, "hall position steps",     NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),       PARAM_RW, fn_RawPosition },
 #endif
     { 0x08, "electrical measurements", NULL,  UI_NONE,  (void *)&electrical_measurements,     sizeof(ELECTRICAL_PARAMS), PARAM_R,  NULL },
-    { 0x09, "enable motors",           NULL,  UI_NONE,  &enable,                              sizeof(enable),            PARAM_RW, fn_enable },
-    { 0x0A, "disable poweroff timer",  NULL,  UI_NONE,  &disablepoweroff,                     sizeof(disablepoweroff),   PARAM_RW, fn_preWriteClear },
-    { 0x0B, "enable console logs",     NULL,  UI_NONE,  &debug_out,                           sizeof(debug_out),         PARAM_RW, fn_preWriteClear },
+    { 0x09, "enable motors",           NULL,  UI_CHAR,  &enable,                              sizeof(enable),            PARAM_RW, fn_enable },
+    { 0x0A, "disable poweroff timer",  NULL,  UI_CHAR,  &disablepoweroff,                     sizeof(disablepoweroff),   PARAM_RW, fn_preWriteClear },
+    { 0x0B, "enable console logs",     NULL,  UI_CHAR,  &debug_out,                           sizeof(debug_out),         PARAM_RW, fn_preWriteClear },
 #ifndef EXCLUDE_DEADRECKONER
-    { 0x0C, "read/clear xyt position", NULL,  UI_NONE,  &xytPosn,                             sizeof(xytPosn),           PARAM_RW, fn_xytPosn },
+    { 0x0C, "read/clear xyt position", NULL,  UI_3LONG, &xytPosn,                             sizeof(xytPosn),           PARAM_RW, fn_xytPosn },
 #endif
     { 0x0D, "PWM control",             NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),           PARAM_RW, fn_PWMData },
-    { 0x0E, "simpler PWM",             NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),       PARAM_RW, fn_PWMData },
+    { 0x0E, "simpler PWM",             NULL,  UI_2LONG, &(PWMData.pwm),                       sizeof(PWMData.pwm),       PARAM_RW, fn_PWMData },
     { 0x21, "buzzer",                  NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
 
 #ifdef FLASH_STORAGE
