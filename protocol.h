@@ -259,7 +259,8 @@ typedef struct tag_PROTOCOL_STAT {
 struct tag_PARAMSTAT;
 typedef struct tag_PARAMSTAT PARAMSTAT;
 
-typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len );
+// NOTE: content can be NULL if len == 0
+typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len );
 
 
 struct tag_PARAMSTAT {

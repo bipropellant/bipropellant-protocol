@@ -584,14 +584,14 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                                 switch (params[i].ui_type){
                                     case UI_SHORT:
                                         // read it
-                                        if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ, 0 );
+                                        if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ, NULL, 0 );
                                         sprintf(ascii_out, "%s(%s): %d\r\n",
                                                 (params[i].description)?params[i].description:"",
                                                 params[i].uistr,
                                                 (int)*(short *)params[i].ptr);
                                         s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
                                         ascii_out[0] = 0; // don't print last one twice
-                                        if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ, 0 );
+                                        if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ, NULL, 0 );
                                         break;
                                     default:
                                         break;
@@ -608,16 +608,16 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                                         case UI_SHORT:
                                             // if number supplied, write
                                             if ((cmd[1+strlen(params[i].uistr)] >= '0') && (cmd[1+strlen(params[i].uistr)] <= '9')){
-                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_WRITE, sizeof(short) );
+                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_WRITE, NULL, 0 );
                                                 *((short *)params[i].ptr) = atoi(&cmd[1+strlen(params[i].uistr)]);
-                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_WRITE, sizeof(short) );
+                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_WRITE, NULL, 0 );
                                                 sprintf(ascii_out, "flash var %s(%s) now %d\r\n",
                                                     (params[i].description)?params[i].description:"",
                                                     params[i].uistr,
                                                     (int)*(short *)params[i].ptr);
                                             } else {
                                                 // read it
-                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ, 0 );
+                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ, NULL, 0 );
                                                 sprintf(ascii_out, "%s(%s): %d\r\n",
                                                         (params[i].description)?params[i].description:"",
                                                         params[i].uistr,
@@ -625,7 +625,7 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
                                                 );
                                                 s->send_serial_data_wait((unsigned char *)ascii_out, strlen(ascii_out));
                                                 ascii_out[0] = 0; // don't print last one twice
-                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ, 0 );
+                                                if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ, NULL, 0 );
                                             }
                                             break;
                                         default:
