@@ -48,6 +48,9 @@ int control_type = 0;
 #if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 
+// forward declaration
+extern int paramcount;
+extern PARAMSTAT params[];
 //////////////////////////////////////////////
 // variables you want to read/write here. Only common used ones, specific ones below.
 
@@ -68,7 +71,7 @@ static SPEEDS speedsx = {0,0};
 // Default function, wipes receive memory before writing (and readresponse is just a differenct type of writing)
 
 
-void fn_preWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_preWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_WRITE:
         case FN_TYPE_PRE_READRESPONSE:
@@ -94,7 +97,7 @@ extern void init_PID_control();
 
 extern volatile ELECTRICAL_PARAMS electrical_measurements;
 
-void fn_FlashContentMagic ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_FlashContentMagic ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_POST_WRITE:
             if (FlashContent.magic != CURRENT_MAGIC){
@@ -110,7 +113,7 @@ void fn_FlashContentMagic ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type,
     }
 }
 
-void fn_FlashContentPID ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_FlashContentPID ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_POST_WRITE:
             change_PID_constants();
@@ -118,7 +121,7 @@ void fn_FlashContentPID ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, i
     }
 }
 
-void fn_FlashContentMaxCurrLim ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_FlashContentMaxCurrLim ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_POST_WRITE:
             electrical_measurements.dcCurLim = MIN(DC_CUR_LIMIT, FlashContent.MaxCurrLim / 100);
@@ -136,7 +139,7 @@ extern uint8_t enable; // global variable for motor enable
 //////////////////////////////////////////////
 // make values safe before we change enable...
 
-void fn_enable ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_enable ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_WRITE:
             if (!enable) {
@@ -172,7 +175,7 @@ extern SENSOR_DATA sensor_data[2];
 // used to send only pertinent data, not the whole structure
 SENSOR_FRAME sensor_copy[2];
 
-void fn_SensorData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_SensorData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_READ:
             // copy just sensor input data
@@ -202,7 +205,7 @@ SPEED_DATA SpeedData = {
     40 // minimum mm/s which we can ask for
 };
 
-void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_READ:
             speedsx.speedl = ((SPEED_DATA*) (param->ptr))->wanted_speed_mm_per_sec[0];
@@ -222,7 +225,7 @@ void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len
 
 POSN Position;
 
-void fn_Position ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_Position ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_READ:
             ((POSN*) (param->ptr))->LeftAbsolute = HallData[0].HallPosn_mm;
@@ -243,7 +246,7 @@ void fn_Position ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len 
 
 POSN_INCR PositionIncr;
 
-void fn_PositionIncr ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_PositionIncr ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_POST_WRITE:
             // if switching to control type POSITION,
@@ -251,7 +254,7 @@ void fn_PositionIncr ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int 
                 control_type = CONTROL_TYPE_POSITION;
                 // then make sure we won't rush off somwehere strange
                 // by setting our wanted posn to where we currently are...
-                fn_enable( s, param, FN_TYPE_PRE_WRITE, 0); // TODO: I don't like calling this with a param entry which does not fit to the handler..
+                fn_enable( s, param, FN_TYPE_PRE_WRITE, content, 0); // TODO: I don't like calling this with a param entry which does not fit to the handler..
             }
 
             enable = 1;
@@ -281,7 +284,7 @@ POSN_DATA PosnData = {
 POSN RawPosition;
 
 
-void fn_RawPosition ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_RawPosition ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_READ:
             ((POSN*) (param->ptr))->LeftAbsolute = HallData[0].HallPosn;
@@ -331,7 +334,7 @@ PWM_DATA PWMData = {
 
 extern int pwms[2];
 
-void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_PRE_READRESPONSE:
         case FN_TYPE_PRE_WRITE:
@@ -372,7 +375,7 @@ extern uint8_t buzzerFreq;    // global variable for the buzzer pitch. can be 1,
 extern uint8_t buzzerPattern; // global variable for the buzzer pattern. can be 1, 2, 3, 4, 5, 6, 7...
 extern uint16_t buzzerLen;
 
-void fn_BuzzerData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_BuzzerData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
     switch (fn_type) {
         case FN_TYPE_POST_WRITE:
             buzzerFreq      = ((BUZZER_DATA*) (param->ptr))->buzzerFreq;
@@ -393,9 +396,9 @@ void fn_BuzzerData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int le
 
 SUBSCRIBEDATA SubscribeData =  { .code=0, .period=0, .count=0, .som=0 };
 
-void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
 
-    fn_preWriteClear(s, param, fn_type, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
+    fn_preWriteClear(s, param, fn_type, content, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
 
     switch (fn_type) {
 
@@ -443,9 +446,9 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int
 
 PROTOCOLCOUNT ProtocolcountData =  { .rx = 0 };
 
-void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
 
-    fn_preWriteClear(s, param, fn_type, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
+    fn_preWriteClear(s, param, fn_type, content, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
 
     switch (fn_type) {
 
@@ -468,9 +471,9 @@ void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_ty
     }
 }
 
-void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
 
-    fn_preWriteClear(s, param, fn_type, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
+    fn_preWriteClear(s, param, fn_type, content, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
 
     switch (fn_type) {
         case FN_TYPE_PRE_READ:
@@ -483,9 +486,9 @@ void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_ty
     }
 }
 
-void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ) {
+void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
 
-    fn_preWriteClear(s, param, fn_type, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
+    fn_preWriteClear(s, param, fn_type, content, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
 
     switch (fn_type) {
         case FN_TYPE_PRE_READ:
@@ -500,7 +503,7 @@ void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 
 #ifndef EXCLUDE_DEADRECKONER
 
-void fn_xytPosn ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len ){
+void fn_xytPosn ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ){
     switch (fn_type) {
         case FN_TYPE_POST_WRITE:
             if (deadreconer) {
@@ -513,39 +516,125 @@ void fn_xytPosn ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, int len )
 }
 #endif
 
+
+////////////////////////////////////////////////////////////
+// allows read of parameter descritpions and variable length
+// accepts (unsigned char first, unsigned char count) in read message!
+// data returned 
+typedef struct tag_descriptions {
+    unsigned char first;
+    unsigned char count_read;
+    char descriptions[251];
+} DESCRIPTIONS;
+DESCRIPTIONS paramstat_descriptions;
+typedef struct tag_description {
+    unsigned char len;    // overall length of THIS
+    unsigned char code;   // code from params
+    unsigned char var_len;// length of variable referenced
+    unsigned char var_type;// UI_NONE or UI_SHORT for the moment
+    char description[249];// nul term description
+    // could be expanded here, as len at the top.
+    // but 'description' above will be shorter than 249, so strucutre variabls can;t be used?
+} DESCRIPTION;
+
+void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ){
+    switch (fn_type) {
+        case FN_TYPE_PRE_READ: {
+            // content[0] is the first entry to read.
+            // content[1] is max count of entries to read
+            // we prepare a buffer here, an MODIFY the paramstat length to tell it how much to send! (evil!?).
+            int first = 0;
+            int count = 100;
+            if (len > 0) {
+                first = content[0];
+            }
+            if (len > 1) {
+                count = content[1];
+            }
+
+            if (first >= paramcount) {
+                params[0].len = 0;
+                return;
+            }
+            if (first + count >= paramcount){
+                count = paramcount - first;
+            }
+
+            // now loop over requested entries until no more will fit in buffer,
+            // informing on start and count done.
+            int actual_count = 0;
+            int len_out = 0;
+            char *p = paramstat_descriptions.descriptions;
+            for (int i = first; i < first+count; i++){
+                int desc_len = 0;
+                if (params[i].description) {
+                    desc_len = strlen(params[i].description);
+                }
+                DESCRIPTION *d = (DESCRIPTION *)p;
+                if (len_out+sizeof(*d)-sizeof(d->description)+desc_len+1 > sizeof(paramstat_descriptions.descriptions)){
+                    break;
+                }
+                d->len = sizeof(*d)-sizeof(d->description)+desc_len+1;
+                d->code = params[i].code;
+                d->var_len = params[i].len;
+                d->var_type = params[i].ui_type;
+                if (desc_len) {
+                    strcpy(d->description, params[i].description);
+                } else {
+                    d->description[0] = 0;
+                }
+                p += d->len;
+                len_out = p - paramstat_descriptions.descriptions;
+                actual_count++;
+            }
+            paramstat_descriptions.first = first;
+            paramstat_descriptions.count_read = actual_count;
+            param->len = sizeof(DESCRIPTIONS) - sizeof(paramstat_descriptions.descriptions) + len_out;
+            break;
+        }
+
+        case FN_TYPE_POST_READ:
+            param->len = 0; // reset to zero
+            break;
+    }
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 // NOTE: Don't start uistr with 'a'
 PARAMSTAT params[] = {
     // Protocol Relevant Parameters
-    { 0x00, NULL,                      NULL,  UI_NONE,  &version,                             sizeof(version),           PARAM_R,  NULL },
-    { 0x22, NULL,                      NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
-    { 0x23, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
-    { 0x24, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataAck },
-    { 0x25, NULL,                      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataNoack },
+    { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions,              0,                         PARAM_R,  fn_paramstat_descriptions },
+    { 0x00, "version",                 NULL,  UI_LONG,  &version,                             sizeof(version),           PARAM_R,  NULL },
+    { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,                       sizeof(SubscribeData),     PARAM_RW, fn_SubscribeData },
+    { 0x23, "protocol stats ack+noack", NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataSum },
+    { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataAck },
+    { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData,                   sizeof(PROTOCOLCOUNT),     PARAM_RW, fn_ProtocolcountDataNoack },
 
 #ifdef CONTROL_SENSOR
-    { 0x01, NULL,                      NULL,  UI_NONE,  &sensor_copy,                         sizeof(sensor_copy),       PARAM_R,  fn_SensorData },
+    { 0x01, "sensor data",             NULL,  UI_NONE,  &sensor_copy,                         sizeof(sensor_copy),       PARAM_R,  fn_SensorData },
 #endif
 #ifdef HALL_INTERRUPTS
-    { 0x02, NULL,                      NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),          PARAM_R,  NULL },
-    { 0x03, NULL,                      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),         PARAM_RW, fn_SpeedData },
-    { 0x04, NULL,                      NULL,  UI_NONE,  &Position,                            sizeof(Position),          PARAM_RW, fn_Position },
-    { 0x05, NULL,                      NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),      PARAM_RW, fn_PositionIncr },
-    { 0x06, NULL,                      NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),          PARAM_RW, fn_preWriteClear },
-    { 0x07, NULL,                      NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),       PARAM_RW, fn_RawPosition },
+    { 0x02, "hall data",               NULL,  UI_NONE,  (void *)&HallData,                    sizeof(HallData),          PARAM_R,  NULL },
+    { 0x03, "speed control mm/s",      NULL,  UI_NONE,  &SpeedData,                           sizeof(SpeedData),         PARAM_RW, fn_SpeedData },
+    { 0x04, "hall position mm",        NULL,  UI_NONE,  &Position,                            sizeof(Position),          PARAM_RW, fn_Position },
+    { 0x05, "position control increment mm", NULL,  UI_NONE,  &PositionIncr,                        sizeof(PositionIncr),      PARAM_RW, fn_PositionIncr },
+    { 0x06, "position control mm",     NULL,  UI_NONE,  &PosnData,                            sizeof(PosnData),          PARAM_RW, fn_preWriteClear },
+    { 0x07, "hall position steps",     NULL,  UI_NONE,  &RawPosition,                         sizeof(RawPosition),       PARAM_RW, fn_RawPosition },
 #endif
-    { 0x08, NULL,                      NULL,  UI_NONE,  (void *)&electrical_measurements,     sizeof(ELECTRICAL_PARAMS), PARAM_R,  NULL },
-    { 0x09, NULL,                      NULL,  UI_NONE,  &enable,                              sizeof(enable),            PARAM_RW, fn_enable },
-    { 0x0A, NULL,                      NULL,  UI_NONE,  &disablepoweroff,                     sizeof(disablepoweroff),   PARAM_RW, fn_preWriteClear },
-    { 0x0B, NULL,                      NULL,  UI_NONE,  &debug_out,                           sizeof(debug_out),         PARAM_RW, fn_preWriteClear },
+    { 0x08, "electrical measurements", NULL,  UI_NONE,  (void *)&electrical_measurements,     sizeof(ELECTRICAL_PARAMS), PARAM_R,  NULL },
+    { 0x09, "enable motors",           NULL,  UI_CHAR,  &enable,                              sizeof(enable),            PARAM_RW, fn_enable },
+    { 0x0A, "disable poweroff timer",  NULL,  UI_CHAR,  &disablepoweroff,                     sizeof(disablepoweroff),   PARAM_RW, fn_preWriteClear },
+    { 0x0B, "enable console logs",     NULL,  UI_CHAR,  &debug_out,                           sizeof(debug_out),         PARAM_RW, fn_preWriteClear },
 #ifndef EXCLUDE_DEADRECKONER
-    { 0x0C, NULL,                      NULL,  UI_NONE,  &xytPosn,                             sizeof(xytPosn),           PARAM_RW, fn_xytPosn },
+    { 0x0C, "read/clear xyt position", NULL,  UI_3LONG, &xytPosn,                             sizeof(xytPosn),           PARAM_RW, fn_xytPosn },
 #endif
-    { 0x0D, NULL,                      NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),           PARAM_RW, fn_PWMData },
-    { 0x0E, NULL,                      NULL,  UI_NONE,  &(PWMData.pwm),                       sizeof(PWMData.pwm),       PARAM_RW, fn_PWMData },
-    { 0x21, NULL,                      NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
+    { 0x0D, "PWM control",             NULL,  UI_NONE,  &PWMData,                             sizeof(PWMData),           PARAM_RW, fn_PWMData },
+    { 0x0E, "simpler PWM",             NULL,  UI_2LONG, &(PWMData.pwm),                       sizeof(PWMData.pwm),       PARAM_RW, fn_PWMData },
+    { 0x21, "buzzer",                  NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
 
 #ifdef FLASH_STORAGE
     { 0x80, "flash magic",             "m",   UI_SHORT, &FlashContent.magic,                  sizeof(short),             PARAM_RW, fn_FlashContentMagic },  // write this with CURRENT_MAGIC to commit to flash
@@ -579,7 +668,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ, msg->len-2 ); // NOTE: re-uses the msg object (part of stats)
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ, writevals->content, msg->len-2 ); // NOTE: re-uses the msg object (part of stats)
                     unsigned char *src = params[i].ptr;
                     for (int j = 0; j < params[i].len; j++){
                         writevals->content[j] = *(src++);
@@ -588,7 +677,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
                     // send back with 'read' command plus data like write.
                     protocol_post(s, msg);
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ, msg->len-2 );
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ, writevals->content, msg->len-2 );
                     break;
                 }
             }
@@ -606,7 +695,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READRESPONSE, msg->len-2 );
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READRESPONSE, writevals->content, msg->len-2 );
 
                     unsigned char *dest = params[i].ptr;
                     // ONLY copy what we have, else we're stuffing random data in.
@@ -615,7 +704,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     for (int j = 0; ((j < params[i].len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];
                     }
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READRESPONSE, msg->len-2 );
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READRESPONSE, writevals->content,  msg->len-2 );
                     break;
                 }
             }
@@ -643,7 +732,8 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     s->ack.counters.unplausibleresponse++;
                 } else {
                     s->noack.counters.unplausibleresponse++;
-                }                        }
+                }                        
+            }
             break;
         }
 
@@ -651,7 +741,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             int i;
             for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
                 if (params[i].code == writevals->code){
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_WRITE, msg->len-2 );
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_WRITE, writevals->content, msg->len-2 );
                     // NOTE: re-uses the msg object (part of stats)
                     unsigned char *dest = params[i].ptr;
 
@@ -666,7 +756,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     writevals->content[0] = 1; // say we wrote it
                     // send back with 'write' command with no data.
                     protocol_post(s, msg);
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_WRITE, msg->len-2 );
+                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_WRITE, writevals->content, msg->len-2 );
                     break;
                 }
             }
