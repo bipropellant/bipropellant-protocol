@@ -239,6 +239,11 @@ typedef struct tag_PROTOCOL_STAT {
 } PROTOCOL_STAT;
 
 
+// needs PROTOCOL_STAT
+#include "ascii_protocol.h"
+
+
+
 ///////////////////////////////////////////////////
 // structure used to gather variables we want to read/write.
 #define PARAM_R     1
@@ -331,9 +336,6 @@ typedef struct tag_POSN_INCR {
     long Right;
 } POSN_INCR;
 #pragma pack(pop)
-
-extern int enable_immediate;
-
 
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
