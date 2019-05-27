@@ -25,24 +25,8 @@
 */
 
 #include "stm32f1xx_hal.h"
-#include "defines.h"
 #include "config.h"
-#ifdef CONTROL_SENSOR
-    #include "sensorcoms.h"
-#endif
 #include "protocol.h"
-#ifdef HALL_INTERRUPTS
-    #include "hallinterrupts.h"
-#endif
-#ifdef SOFTWARE_SERIAL
-    #include "softwareserial.h"
-#endif
-#include "bldc.h"
-#ifdef FLASH_STORAGE
-    #include "flashcontent.h"
-    #include "flashaccess.h"
-#endif
-#include "comms.h"
 
 #include <string.h>
 #include <stdlib.h>

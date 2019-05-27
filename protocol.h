@@ -76,7 +76,67 @@ typedef struct tag_PWM_DATA {
 extern PWM_DATA PWMData;
 
 
+#pragma pack(push, 4)  // long and float are 4 byte each
+typedef struct tag_HALL_DATA_STRUCT{
+    long HallPosn; // 90 per revolution
+    long HallSpeed; // speed part calibrated to speed demand value
 
+    float HallPosnMultiplier; // m per hall segment
+
+    long HallPosn_lastread; // posn offset set via protocol in raw value
+    long HallPosn_mm; // posn in mm
+    long HallPosn_mm_lastread; // posn offset set via protocol in mm
+    long HallSpeed_mm_per_s; // speed in m/s
+
+    unsigned long HallTimeDiff;
+    unsigned long HallSkipped;
+} HALL_DATA_STRUCT;
+#pragma pack(pop)
+
+#pragma pack(push, 4) // all used types (float and int) are 4 bytes
+typedef struct tag_ELECTRICAL_PARAMS{
+    int bat_raw;
+    float batteryVoltage;
+
+    int board_temp_raw;
+    float board_temp_filtered;
+    float board_temp_deg_c;
+
+    int charging;
+
+    float dcCurLim;
+
+    struct {
+        float dcAmps;
+        float dcAmpsAvgAcc;
+        float dcAmpsAvg;
+        int r1;
+        int r2;
+        int q;
+    } motors[2];
+
+} ELECTRICAL_PARAMS;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+typedef struct tag_sensor_frame{
+  unsigned char header_00; // this byte gets 0x100 (9 bit serial)
+  short Angle;
+  short Angle_duplicate;
+  unsigned char AA_55;
+  unsigned char Accelleration;
+  unsigned char Accelleration_duplicate;
+  short Roll;
+} SENSOR_FRAME;
+#pragma pack(pop)
+
+#pragma pack(push, 4)  // since on 'long' are used, alignment can be optimized for 4 bytes
+typedef struct INTEGER_XYT_POSN_tag {
+    long x;
+    long y;
+    long degrees;
+} INTEGER_XYT_POSN;
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 typedef struct {
