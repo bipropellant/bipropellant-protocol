@@ -280,6 +280,7 @@ typedef struct tag_PROTOCOL_STAT {
 
 struct tag_PARAMSTAT;
 typedef struct tag_PARAMSTAT PARAMSTAT;
+extern PARAMSTAT *params[256];
 
 // NOTE: content can be NULL if len == 0
 typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len );
@@ -370,12 +371,20 @@ int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 extern void (*debugprint)(const char str[]);
 
 /////////////////////////////////////////////////////////////////
+// Set entry in params
+int setParam(PARAMSTAT *param);
+
+/////////////////////////////////////////////////////////////////
 // Change variable at runtime
 int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw);
 
 /////////////////////////////////////////////////////////////////
 // Register new function handler at runtime
-PARAMSTAT_FN setParamHandler(unsigned char code, PARAMSTAT_FN callback);
+int setParamHandler(unsigned char code, PARAMSTAT_FN callback);
+
+/////////////////////////////////////////////////////////////////
+// get param function handler
+PARAMSTAT_FN getParamHandler(unsigned char code);
 
 #endif
 

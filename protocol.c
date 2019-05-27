@@ -45,8 +45,7 @@ int control_type = 0;
 
 
 // forward declaration
-extern int paramcount;
-extern PARAMSTAT params[];
+extern PARAMSTAT *params[];
 //////////////////////////////////////////////
 // variables you want to read/write here. Only common used ones, specific ones below.
 
@@ -59,6 +58,8 @@ typedef struct tag_SPEEDS{
 } SPEEDS;
 static SPEEDS speedsx = {0,0};
 
+// Default temporary storage for received values
+unsigned char contentbuf[sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content )];
 
 
 
@@ -491,7 +492,7 @@ typedef struct tag_description {
 } DESCRIPTION;
 
 void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ){
-    switch (fn_type) {
+/*    switch (fn_type) {
         case FN_TYPE_PRE_READ: {
             // content[0] is the first entry to read.
             // content[1] is max count of entries to read
@@ -506,7 +507,7 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
             }
 
             if (first >= paramcount) {
-                params[0].len = 0;
+                params[0]->len = 0;
                 return;
             }
             if (first + count >= paramcount){
@@ -520,19 +521,19 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
             char *p = paramstat_descriptions.descriptions;
             for (int i = first; i < first+count; i++){
                 int desc_len = 0;
-                if (params[i].description) {
-                    desc_len = strlen(params[i].description);
+                if (params[i]->description) {
+                    desc_len = strlen(params[i]->description);
                 }
                 DESCRIPTION *d = (DESCRIPTION *)p;
                 if (len_out+sizeof(*d)-sizeof(d->description)+desc_len+1 > sizeof(paramstat_descriptions.descriptions)){
                     break;
                 }
                 d->len = sizeof(*d)-sizeof(d->description)+desc_len+1;
-                d->code = params[i].code;
-                d->var_len = params[i].len;
-                d->var_type = params[i].ui_type;
+                d->code = params[i]->code;
+                d->var_len = params[i]->len;
+                d->var_type = params[i]->ui_type;
                 if (desc_len) {
-                    strcpy(d->description, params[i].description);
+                    strcpy(d->description, params[i]->description);
                 } else {
                     d->description[0] = 0;
                 }
@@ -549,7 +550,7 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
         case FN_TYPE_POST_READ:
             param->len = 0; // reset to zero
             break;
-    }
+    } */
 }
 
 
@@ -558,7 +559,10 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 // NOTE: Don't start uistr with 'a'
-PARAMSTAT params[] = {
+PARAMSTAT *params[256];
+
+
+PARAMSTAT initialparams[] = {
     // Protocol Relevant Parameters
     { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions,              0,                         PARAM_R,  fn_paramstat_descriptions },
     { 0x00, "version",                 NULL,  UI_LONG,  &version,                             sizeof(version),           PARAM_R,  NULL },
@@ -590,35 +594,41 @@ PARAMSTAT params[] = {
     { 0x21, "buzzer",                  NULL,  UI_NONE,  &BuzzerData,                          sizeof(BuzzerData),        PARAM_RW, fn_BuzzerData },
 
 #ifdef FLASH_STORAGE
-    { 0x80, "flash magic",             "m",   UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },  // write this with CURRENT_MAGIC to commit to flash
+    { 0x80, "flash magic",             "m",   UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear },  // write this with CURRENT_MAGIC to commit to flash
 
-    { 0x81, "posn kp x 100",           "pkp", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
-    { 0x82, "posn ki x 100",           "pki", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // pid params for Position
-    { 0x83, "posn kd x 100",           "pkd", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
-    { 0x84, "posn pwm lim",            "pl",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // e.g. 200
+    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear },
+    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear }, // pid params for Position
+    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear },
+    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear }, // e.g. 200
 
-    { 0x85, "speed kp x 100",          "skp", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
-    { 0x86, "speed ki x 100",          "ski", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // pid params for Speed
-    { 0x87, "speed kd x 100",          "skd", UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear },
-    { 0x88, "speed pwm incr lim",      "sl",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // e.g. 20
-    { 0x89, "max current limit x 100", "cl",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
-    { 0xA0, "hoverboard enable",       "he",  UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // e.g. 20
+    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear },
+    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear }, // pid params for Speed
+    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear },
+    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear }, // e.g. 20
+    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
+    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &contentbuf, sizeof(short), PARAM_RW, fn_preWriteClear } // e.g. 20
 #endif
-
-    { 0xF0, "temp0", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF1, "temp1", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF2, "temp2", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF3, "temp3", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF4, "temp4", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF5, "temp5", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF6, "temp6", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF7, "temp7", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF8, "temp8", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }, // Placeholder for application specific functions
-    { 0xF9, "temp9", NULL, UI_NONE, NULL, 0, PARAM_R, fn_preWriteClear }  // Placeholder for application specific functions
 };
 
-int paramcount = sizeof(params)/sizeof(params[0]);
 
+/////////////////////////////////////////////
+// Set entry in params
+int setParam(PARAMSTAT *param) {
+
+    if(param == NULL) return 1;   // Failure, got NULL pointer
+
+    // Check if len can actually be received
+    if( param->len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
+        return 1;                 // Too long, Failure
+    }
+
+    if( param->code < (sizeof(params)/sizeof(params[0])) ) {
+        params[param->code] = param;
+        return 0; // Successfully assigned
+    }
+
+    return 1; // Failure, index too big.
+}
 
 /////////////////////////////////////////////
 // Change variable at runtime
@@ -629,126 +639,147 @@ int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char 
         return 1;                           // Too long, Failure
     }
 
-    for (int i = 0; i < paramcount; i++) {
-        if (params[i].code == code) {
-            params[i].ui_type = ui_type;
-            params[i].ptr = ptr;
-            params[i].len = len;
-            params[i].rw = rw;
+    if( code < (sizeof(params)/sizeof(params[0])) ) {
+        if(params[code] != NULL) {
+            params[code]->ui_type = ui_type;
+            params[code]->ptr = ptr;
+            params[code]->len = len;
+            params[code]->rw = rw;
             return 0;                       // Success
         }
     }
     return 1;                               // Not found, Failure
 }
 
-
-
 /////////////////////////////////////////////
 // Register new function handler at runtime
-PARAMSTAT_FN setParamHandler(unsigned char code, PARAMSTAT_FN callback) {
-    PARAMSTAT_FN old = NULL;
+int setParamHandler(unsigned char code, PARAMSTAT_FN callback) {
 
-    for (int i = 0; i < paramcount; i++) {
-        if (params[i].code == code) {
-            old = params[i].fn;
-            params[i].fn = callback;
-        }
+    if( code < (sizeof(params)/sizeof(params[0])) ) {
+        if(params[code] == NULL) return 1;
+        params[code]->fn = callback;
+        return 0; // Successfully assigned
     }
-    return old;
+
+    return 1; // Failure, index too big.
 }
 
 /////////////////////////////////////////////
-// a complete machineprotocl message has been
+// get param function handler
+PARAMSTAT_FN getParamHandler(unsigned char code) {
+
+    if( code < (sizeof(params)/sizeof(params[0])) ) {
+        if(params[code] != NULL) {
+            return params[code]->fn;
+        }
+    }
+
+    return NULL;
+}
+
+/////////////////////////////////////////////
+// initialize protocol
+// called from main.c
+int nosend( unsigned char *data, int len ){ return 0; };
+int protocol_init(PROTOCOL_STAT *s) {
+    memset(s, 0, sizeof(*s));
+    s->timeout1 = 500;
+    s->timeout2 = 100;
+    s->allow_ascii = 1;
+    s->send_serial_data = nosend;
+    s->send_serial_data_wait = nosend;
+
+    int error = 0;
+
+    for (int i = 0; i < sizeof(initialparams)/sizeof(initialparams[0]); i++) {
+        error += setParam(&initialparams[i]);
+    }
+
+    return error;
+}
+
+/////////////////////////////////////////////
+// a complete machineprotocol message has been
 // received without error
-void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
+void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
     PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
     switch (writevals->cmd){
-        case PROTOCOL_CMD_READVAL:{
-            int i;
-            for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
-                if (params[i].code == writevals->code){
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READ, writevals->content, msg->len-2 ); // NOTE: re-uses the msg object (part of stats)
-                    unsigned char *src = params[i].ptr;
-                    for (int j = 0; j < params[i].len; j++){
+        case PROTOCOL_CMD_READVAL: {
+            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
+                if(params[writevals->code] != NULL) {
+                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_PRE_READ, writevals->content, msg->len-2 ); // NOTE: re-uses the msg object (part of stats)
+                    unsigned char *src = params[writevals->code]->ptr;
+                    for (int j = 0; j < params[writevals->code]->len; j++){
                         writevals->content[j] = *(src++);
                     }
-                    msg->len = 1+1+params[i].len;  // command + code + data len only
+                    msg->len = 1+1+params[writevals->code]->len;  // command + code + data len only
                     writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
                     // send back with 'read' command plus data like write.
                     protocol_post(s, msg);
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READ, writevals->content, msg->len-2 );
+                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_POST_READ, writevals->content, msg->len-2 );
                     break;
                 }
             }
             // parameter code not found
-            if (i == sizeof(params)/sizeof(params[0])){
-                msg->len = 1+1; // cmd + code only
-                writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
-                // send back with 'read' command plus data like write.
-                protocol_post(s, msg);
-            }
+            msg->len = 1+1; // cmd + code only
+            writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
+            // send back with 'read' command plus data like write.
+            protocol_post(s, msg);
             break;
         }
 
-        case PROTOCOL_CMD_READVALRESPONSE:{
-            int i;
-            for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
-                if (params[i].code == writevals->code){
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_READRESPONSE, writevals->content, msg->len-2 );
+        case PROTOCOL_CMD_READVALRESPONSE: {
+            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
+                if(params[writevals->code] != NULL) {
+                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_PRE_READRESPONSE, writevals->content, msg->len-2 );
 
-                    unsigned char *dest = params[i].ptr;
+                    unsigned char *dest = params[writevals->code]->ptr;
                     // ONLY copy what we have, else we're stuffing random data in.
                     // e.g. is setting posn, structure is 8 x 4 bytes,
                     // but we often only want to set the first 8
-                    for (int j = 0; ((j < params[i].len) && (j < (msg->len-2))); j++){
+                    for (int j = 0; ((j < params[writevals->code]->len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];
                     }
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_READRESPONSE, writevals->content,  msg->len-2 );
+                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_POST_READRESPONSE, writevals->content,  msg->len-2 );
                     break;
                 }
             }
             // parameter code not found
-            if (i == sizeof(params)/sizeof(params[0])){
-                if(msg->SOM == PROTOCOL_SOM_ACK) {
-                    s->ack.counters.unplausibleresponse++;
-                } else {
-                    s->noack.counters.unplausibleresponse++;
-                }
+            if(msg->SOM == PROTOCOL_SOM_ACK) {
+                s->ack.counters.unplausibleresponse++;
+            } else {
+                s->noack.counters.unplausibleresponse++;
             }
             break;
         }
 
         case PROTOCOL_CMD_WRITEVALRESPONSE:{
-            int i;
-            for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
-                if (params[i].code == writevals->code){
+            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
+                if(params[writevals->code] != NULL) {
                     break;
                 }
             }
             // parameter code not found
-            if (i == sizeof(params)/sizeof(params[0])){
-                if(msg->SOM == PROTOCOL_SOM_ACK) {
-                    s->ack.counters.unplausibleresponse++;
-                } else {
-                    s->noack.counters.unplausibleresponse++;
-                }
+            if(msg->SOM == PROTOCOL_SOM_ACK) {
+                s->ack.counters.unplausibleresponse++;
+            } else {
+                s->noack.counters.unplausibleresponse++;
             }
             break;
         }
 
         case PROTOCOL_CMD_WRITEVAL:{
-            int i;
-            for (i = 0; i < sizeof(params)/sizeof(params[0]); i++){
-                if (params[i].code == writevals->code){
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_PRE_WRITE, writevals->content, msg->len-2 );
+            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
+                if(params[writevals->code] != NULL) {
+                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_PRE_WRITE, writevals->content, msg->len-2 );
                     // NOTE: re-uses the msg object (part of stats)
-                    unsigned char *dest = params[i].ptr;
+                    unsigned char *dest = params[writevals->code]->ptr;
 
                     // ONLY copy what we have, else we're stuffing random data in.
                     // e.g. is setting posn, structure is 8 x 4 bytes,
                     // but we often only want to set the first 8
-                    for (int j = 0; ((j < params[i].len) && (j < (msg->len-2))); j++){
+                    for (int j = 0; ((j < params[writevals->code]->len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];
                     }
                     msg->len = 1+1+1; // cmd+code+'1' only
@@ -756,18 +787,16 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
                     writevals->content[0] = 1; // say we wrote it
                     // send back with 'write' command with no data.
                     protocol_post(s, msg);
-                    if (params[i].fn) params[i].fn( s, &params[i], FN_TYPE_POST_WRITE, writevals->content, msg->len-2 );
+                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_POST_WRITE, writevals->content, msg->len-2 );
                     break;
                 }
             }
             // parameter code not found
-            if (i == sizeof(params)/sizeof(params[0])){
-                msg->len = 1+1+1; // cmd +code +'0' only
-                writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
-                writevals->content[0] = 0; // say we did not write it
-                // send back with 'write' command plus data like write.
-                protocol_post(s, msg);
-            }
+            msg->len = 1+1+1; // cmd +code +'0' only
+            writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
+            writevals->content[0] = 0; // say we did not write it
+            // send back with 'write' command plus data like write.
+            protocol_post(s, msg);
             break;
         }
 
