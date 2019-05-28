@@ -334,6 +334,14 @@ int setParam(PARAMSTAT *param) {
     return 1; // Failure, index too big.
 }
 
+int setParams( PARAMSTAT params[], int len) {
+    int error = 0;
+    for (int i = 0; i < len; i++) {
+        error += setParam(&params[i]);
+    }
+    return error;
+}
+
 /////////////////////////////////////////////
 // Change variable at runtime
 int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw) {
@@ -395,9 +403,7 @@ int protocol_init(PROTOCOL_STAT *s) {
 
     int error = 0;
 
-    for (int i = 0; i < sizeof(initialparams)/sizeof(initialparams[0]); i++) {
-        error += setParam(&initialparams[i]);
-    }
+    error += setParams(initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
 
     return error;
 }
