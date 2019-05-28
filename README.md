@@ -1,6 +1,6 @@
-# hbprotocol
+# bipropellant-protocol
 
-hbprotocol defines and implements a low level protocol shared between a few different hoverboard repositories. e.g. [ours](https://github.com/bipropellant/bipropellant-hoverboard-firmware)
+bipropellant-protocol defines and implements a low level protocol shared between a few different hoverboard repositories. e.g. [ours](https://github.com/bipropellant/bipropellant-hoverboard-firmware)
 
 It features two facets
 
@@ -9,4 +9,4 @@ It features two facets
 
 Both protocols may be active at the same time on the same serial line.
 
-See Wiki for more detail
+See [Wiki](https://github.com/bipropellant/bipropellant-protocol/wiki) for more detail
