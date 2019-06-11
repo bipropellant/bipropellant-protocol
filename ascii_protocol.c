@@ -35,6 +35,7 @@
     #include "flashaccess.h"
 #endif
 #include "comms.h"
+#include "setup.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -80,6 +81,8 @@ extern volatile uint32_t timeout; // global variable for timeout
 extern int dspeeds[2];
 extern int pwms[2];
 
+// from filled in hallinterrupt.c
+volatile unsigned  bldc_count_per_hall[2] = {0, 0};
 
 
 extern uint8_t debug_out;
@@ -305,6 +308,29 @@ int ascii_process_immediate(PROTOCOL_STAT *s, unsigned char byte){
             sensor_stabilise ^= 1;
             sprintf(ascii_out, "Sensor Stabilisation is now %d\r\n", sensor_stabilise);
             break;
+#endif
+#ifdef HALL_INTERRUPTS
+        case 'V':
+        case 'v': // display stats from main timing
+            // we don't have float printing
+            processed = 1;
+            sprintf(ascii_out, "Main loop interval_us %d; lates %d, processing_us %d, interval by tick %d\r\n"\
+                "bldc freq %d, bldc_us %d, bldc overruns %d, bldc cycles %d, bld100k %d, cpu freq %d, bldcperhallL/R %d/%d\r\n",
+                (int)(timeStats.f_main_interval_ms * 1000), 
+                timeStats.main_late_count, 
+                (int)(timeStats.f_main_processing_ms*1000), 
+                (int)timeStats.f_main_interval_ms, 
+                timeStats.bldc_freq, 
+                (int)timeStats.bldc_us,
+                BldcControllerParams.overruns,
+                timeStats.bldc_cycles,
+                timeStats.bldc_100k,
+                timeStats.hclkFreq,
+                bldc_count_per_hall[0],
+                bldc_count_per_hall[1]
+            );
+            break;
+
 #endif
 
         case 'H':
@@ -540,12 +566,36 @@ void ascii_process_msg(PROTOCOL_STAT *s, char *cmd, int len){
             ascii_out[0] = 0;
             break;
 
+        case '$':
+#ifdef READ_SENSOR        
+            getSensorBaudRate(0);
+            getSensorBaudRate(1);
+#endif            
+            break;
+
+        case '%':
+            setUSART2ToControl(0);
+            break;
+
 #ifdef HALL_INTERRUPTS
         case 'S':
         case 's': // display stats from main timing
             // we don't have float printing
-            sprintf(ascii_out, "Main loop interval_us %d; lates %d, processing_us %d\r\n", 
-                (int)(timeStats.main_interval_ms * 1000), timeStats.main_late_count, (int)(timeStats.main_processing_ms*1000));
+            sprintf(ascii_out, "Main loop interval_us %d; lates %d, processing_us %d, interval by tick %d\r\n"\
+                "bldc freq %d, bldc_us %d, bldc overruns %d, bldc cycles %d, bld100k %d, cpu freq %d, bldcperhallL/R %d/%d\r\n",
+                (int)(timeStats.f_main_interval_ms * 1000), 
+                timeStats.main_late_count, 
+                (int)(timeStats.f_main_processing_ms*1000), 
+                (int)timeStats.f_main_interval_ms, 
+                timeStats.bldc_freq, 
+                (int)timeStats.bldc_us,
+                BldcControllerParams.overruns,
+                timeStats.bldc_cycles,
+                timeStats.bldc_100k,
+                timeStats.hclkFreq,
+                bldc_count_per_hall[0],
+                bldc_count_per_hall[1]
+                );
             break;
 
 #endif
