@@ -82,7 +82,7 @@ extern int dspeeds[2];
 extern int pwms[2];
 
 // from filled in hallinterrupt.c
-volatile unsigned  bldc_count_per_hall[2] = {0, 0};
+extern volatile unsigned  bldc_count_per_hall[2];
 
 
 extern uint8_t debug_out;
