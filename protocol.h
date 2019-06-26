@@ -93,6 +93,26 @@ typedef struct tag_HALL_DATA_STRUCT{
 #pragma pack(pop)
 
 #pragma pack(push, 4) // all used types (float and int) are 4 bytes
+
+typedef struct tag_MOTOR_ELECTRICAL{
+        float dcAmps;
+        float dcAmpsAvgAcc;
+        float dcAmpsAvg;
+        int r1;
+        int r2;
+        int q;
+
+        int dcAmpsx100;
+
+        int pwm_limiter;
+        int pwm_requested;
+        int pwm_actual;
+
+        unsigned int limiter_count;
+} MOTOR_ELECTRICAL;
+#pragma pack(pop)
+
+#pragma pack(push, 4) // all used types (float and int) are 4 bytes
 typedef struct tag_ELECTRICAL_PARAMS{
     int bat_raw;
     float batteryVoltage;
@@ -103,16 +123,10 @@ typedef struct tag_ELECTRICAL_PARAMS{
 
     int charging;
 
-    float dcCurLim;
+    int dcCurLim; // amps*100
+    int dc_adc_limit; // limit expressed in terms of ADC units.
 
-    struct {
-        float dcAmps;
-        float dcAmpsAvgAcc;
-        float dcAmpsAvg;
-        int r1;
-        int r2;
-        int q;
-    } motors[2];
+    MOTOR_ELECTRICAL motors[2];
 
 } ELECTRICAL_PARAMS;
 #pragma pack(pop)
