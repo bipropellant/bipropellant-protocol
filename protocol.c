@@ -64,7 +64,9 @@ typedef struct tag_SPEEDS{
 static SPEEDS speedsx = {0,0};
 
 
-
+#ifdef INPUT_TIMEOUT
+extern volatile uint32_t input_timeout;
+#endif // DEBUG
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -215,6 +217,11 @@ void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigne
         case FN_TYPE_PRE_WRITE:
             control_type = CONTROL_TYPE_SPEED;
             timeout = 0;
+            
+  #ifdef INPUT_TIMEOUT
+            input_timeout = 0;
+            #endif
+
             break;
     }
 }
@@ -259,7 +266,9 @@ void fn_PositionIncr ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsi
 
             enable = 1;
             timeout = 0;
-
+  #ifdef INPUT_TIMEOUT
+            input_timeout = 0;
+            #endif
             // increment our wanted position
             PosnData.wanted_posn_mm[0] += ((POSN_INCR*) (param->ptr))->Left;
             PosnData.wanted_posn_mm[1] += ((POSN_INCR*) (param->ptr))->Right;
@@ -340,6 +349,9 @@ void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned 
         case FN_TYPE_PRE_WRITE:
             control_type = CONTROL_TYPE_PWM;
             timeout = 0;
+              #ifdef INPUT_TIMEOUT
+            input_timeout = 0;
+            #endif
             break;
 
         case FN_TYPE_POST_READRESPONSE:
