@@ -217,8 +217,9 @@ void fn_SpeedData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigne
         case FN_TYPE_PRE_WRITE:
             control_type = CONTROL_TYPE_SPEED;
             timeout = 0;
-            
+          
   #ifdef INPUT_TIMEOUT
+    enable=1;
             input_timeout = 0;
             #endif
 
@@ -264,10 +265,11 @@ void fn_PositionIncr ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsi
                 fn_enable( s, param, FN_TYPE_PRE_WRITE, content, 0); // TODO: I don't like calling this with a param entry which does not fit to the handler..
             }
 
-            enable = 1;
+          
             timeout = 0;
   #ifdef INPUT_TIMEOUT
             input_timeout = 0;
+              enable = 1;
             #endif
             // increment our wanted position
             PosnData.wanted_posn_mm[0] += ((POSN_INCR*) (param->ptr))->Left;
@@ -349,7 +351,9 @@ void fn_PWMData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned 
         case FN_TYPE_PRE_WRITE:
             control_type = CONTROL_TYPE_PWM;
             timeout = 0;
+             
               #ifdef INPUT_TIMEOUT
+               enable=1;
             input_timeout = 0;
             #endif
             break;
