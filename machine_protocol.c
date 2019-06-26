@@ -25,24 +25,8 @@
 */
 
 #include "stm32f1xx_hal.h"
-#include "defines.h"
 #include "config.h"
-#ifdef CONTROL_SENSOR
-    #include "sensorcoms.h"
-#endif
 #include "protocol.h"
-#ifdef HALL_INTERRUPTS
-    #include "hallinterrupts.h"
-#endif
-#ifdef SOFTWARE_SERIAL
-    #include "softwareserial.h"
-#endif
-#include "bldc.h"
-#ifdef FLASH_STORAGE
-    #include "flashcontent.h"
-    #include "flashaccess.h"
-#endif
-#include "comms.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -55,11 +39,6 @@
 static unsigned char mpGetTxByte(MACHINE_PROTOCOL_TX_BUFFER *buf);
 static char mpGetTxMsg(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char *dest);
 static void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value);
-
-///////////////////////////////////////////////////
-// from protocol.c
-extern PARAMSTAT params[];
-extern int paramcount;
 
 //////////////////////////////////////////////////////////////////
 
@@ -83,28 +62,6 @@ static void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int 
 static int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
 static void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), PROTOCOL_MSG2 *msg);
 
-int nosend( unsigned char *data, int len ){ return 0; };
-
-
-// called from main.c
-// externed in protocol.h
-int protocol_init(PROTOCOL_STAT *s) {
-    memset(s, 0, sizeof(*s));
-    s->timeout1 = 500;
-    s->timeout2 = 100;
-    s->allow_ascii = 1;
-    s->send_serial_data = nosend;
-    s->send_serial_data_wait = nosend;
-
-    // Check if all lengths in params can actually be received
-    for (int i = 0; i < paramcount; i++) {
-        if( params[i].len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
-            params[i].len = 0;  // Set to 0, so nothing can be received
-            return 1;           // Failure
-        }
-    }
-    return 0;                   // Success
-}
 
 // called from main.c
 // externed in protocol.h

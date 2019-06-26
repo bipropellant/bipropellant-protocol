@@ -18,88 +18,11 @@
 */
 #pragma once
 
-#include "config.h"
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-//// control structures used in firmware
-#pragma pack(push, 4)  // all used data types are 4 byte
-typedef struct tag_POSN_DATA {
-    // these get set
-    long wanted_posn_mm[2];
-
-    // configurations/constants
-    int posn_max_speed; // max speed in this mode
-    int posn_min_speed; // minimum speed (to get wheels moving)
-
-    // just so it can be read back
-    long posn_diff_mm[2];
-    long posn_speed_demand[2];
-} POSN_DATA;
-#pragma pack(pop)
-
-extern POSN_DATA PosnData;
-
-#pragma pack(push, 4)  // all used data types are 4 byte
-typedef struct tag_SPEED_DATA {
-    // these get set
-    long wanted_speed_mm_per_sec[2];
-
-    // configurations/constants
-    int speed_max_power; // max speed in this mode
-    int speed_min_power; // minimum speed (to get wheels moving)
-    int speed_minimum_speed; // below this, we don't ask it to do anything
-
-    // just so it can be read back
-    long speed_diff_mm_per_sec[2];
-    long speed_power_demand[2];
-} SPEED_DATA;
-#pragma pack(pop)
-
-extern SPEED_DATA SpeedData;
-
-#pragma pack(push, 4)  // all used data types are 4 byte
-typedef struct tag_PWM_DATA {
-    // these get set
-    long pwm[2];
-
-    // configurations/constants
-    int speed_max_power; // max speed in this mode
-    int speed_min_power; // minimum speed (to get wheels moving)
-    int speed_minimum_pwm; // below this, we don't ask it to do anything
-} PWM_DATA;
-#pragma pack(pop)
-
-extern PWM_DATA PWMData;
-
-
-
-
-#pragma pack(push, 1)
-typedef struct {
-    uint8_t buzzerFreq;
-    uint8_t buzzerPattern;
-    uint16_t buzzerLen;
-} BUZZER_DATA;
-#pragma pack(pop)
-
-extern BUZZER_DATA BuzzerData;
-
-
-extern int control_type;
-#define CONTROL_TYPE_NONE 0
-#define CONTROL_TYPE_POSITION 1
-#define CONTROL_TYPE_SPEED 2
-#define CONTROL_TYPE_PWM 3
-#define CONTROL_TYPE_MAX 4
-
-
-/////////////////////////////////////
-// the rest only if we have a protocol.
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
 /////////////////////////////////////////////////////////////////
 // 'machine' protocol structures and definitions
@@ -238,6 +161,13 @@ typedef struct tag_PROTOCOL_STAT {
     PROTOCOLSTATE noack;
 } PROTOCOL_STAT;
 
+// needs PROTOCOL_STAT
+// used in main_ascii_init, external to this file`
+extern int enable_immediate;
+
+extern void ascii_add_immediate( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char byte,  char *ascii_out), char* description );
+extern void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out), char *description );
+extern int ascii_init();
 
 ///////////////////////////////////////////////////
 // structure used to gather variables we want to read/write.
@@ -245,7 +175,7 @@ typedef struct tag_PROTOCOL_STAT {
 #define PARAM_RW    3
 ///////////////////////////////////////////////////
 // defines for simple variable types.
-// generally: 
+// generally:
 // if first nibble is 1, second nibble is bytecount for single variable.
 // if second nibble is 2, second nibble is bytecount for each of two variables.
 // etc.
@@ -272,13 +202,12 @@ typedef struct tag_PROTOCOL_STAT {
 #define FN_TYPE_PRE_READRESPONSE  5
 #define FN_TYPE_POST_READRESPONSE 6
 
-
 struct tag_PARAMSTAT;
 typedef struct tag_PARAMSTAT PARAMSTAT;
+extern PARAMSTAT *params[256];
 
 // NOTE: content can be NULL if len == 0
 typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len );
-
 
 struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
@@ -286,12 +215,11 @@ struct tag_PARAMSTAT {
     char *uistr;            // if non-null, used in ascii protocol to adjust with f<str>num<cr>
     char ui_type;           // only UI_NONE or UI_SHORT
     void *ptr;              // pointer to value
-    int len;               // length of value
+    int len;                // length of value
     char rw;                // PARAM_R or PARAM_RW
 
     PARAMSTAT_FN fn;        // function to handle events
 };
-
 
 
 /////////////////////////////////////////////////////////
@@ -313,27 +241,6 @@ struct tag_PARAMSTAT {
 
 #define PROTOCOL_SOM_ACK 2
 #define PROTOCOL_SOM_NOACK 4
-//
-/////////////////////////////////////////////////////////////////
-
-#pragma pack(push, 4)  // all used data types are 4 byte
-typedef struct tag_POSN {
-    long LeftAbsolute;
-    long RightAbsolute;
-    long LeftOffset;
-    long RightOffset;
-} POSN;
-#pragma pack(pop)
-
-#pragma pack(push, 4)  // all used data types are 4 byte
-typedef struct tag_POSN_INCR {
-    long Left;
-    long Right;
-} POSN_INCR;
-#pragma pack(pop)
-
-extern int enable_immediate;
-
 
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
@@ -367,7 +274,22 @@ int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 // callback which can be used for "debugging"
 extern void (*debugprint)(const char str[]);
 
-#endif
+/////////////////////////////////////////////////////////////////
+// Set entry in params
+int setParam(PARAMSTAT *param);
+
+/////////////////////////////////////////////////////////////////
+// Change variable at runtime
+int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw);
+
+/////////////////////////////////////////////////////////////////
+// Register new function handler at runtime
+int setParamHandler(unsigned char code, PARAMSTAT_FN callback);
+
+/////////////////////////////////////////////////////////////////
+// get param function handler
+PARAMSTAT_FN getParamHandler(unsigned char code);
+
 
 #ifdef __cplusplus
 }
