@@ -17,18 +17,17 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "config.h"
 #include "protocol.h"
 #include <string.h>
 #include <stdlib.h>
 
-//////////////////////////////////////////////
-// things needed by main.c
-int control_type = 0;
+
+// if not using from STM32, provide dummy functions from your project...
+extern int HAL_Delay(int ms);
+extern int HAL_NVIC_SystemReset();
 
 
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
-
+static int initialised_functions = 0;
 
 // forward declaration
 extern PARAMSTAT *params[];
@@ -37,8 +36,6 @@ extern PARAMSTAT *params[];
 
 // Default temporary storage for received values
 unsigned char contentbuf[sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content )];
-
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -402,8 +399,12 @@ int protocol_init(PROTOCOL_STAT *s) {
     s->send_serial_data_wait = nosend;
 
     int error = 0;
-
-    error += setParams(initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
+    if (!initialised_functions) {
+        error += setParams(initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
+        initialised_functions = 1;
+        // yes, may be called multiple times, but checks internally.
+        ascii_init();
+    }
 
     return error;
 }
@@ -545,7 +546,3 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         break;
     }
 }
-
-
-
-#endif

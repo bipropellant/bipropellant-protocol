@@ -16,10 +16,7 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "stm32f1xx_hal.h"
-#include "defines.h"
-#include "config.h"
-#include "ascii_protocol.h"
+#include "protocol.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -32,6 +29,8 @@ void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
 
 // used in main_ascii_init, external to this file`
 int enable_immediate = 0;
+
+static int initialised = 0;
 
 
 ///////////////////////////////////////////////////
@@ -202,9 +201,13 @@ static int line_help(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
 
 
 int ascii_init() {
-    ascii_add_line_fn( 'L', line_lock_ascii, "Lock ascii protocol");
-    ascii_add_line_fn( 'u', line_unlock_ascii, "unlockASCII - unlock ASCII protocol");
+    if (!initialised) {
+        ascii_add_line_fn( 'L', line_lock_ascii, "Lock ascii protocol");
+        ascii_add_line_fn( 'u', line_unlock_ascii, "unlockASCII - unlock ASCII protocol");
 
-    ascii_add_line_fn( '?', line_help, "display help");
-    return 1;
+        ascii_add_line_fn( '?', line_help, "display help");
+        initialised = 1;
+        return 1;
+    }
+    return 0;
 }

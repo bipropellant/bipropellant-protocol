@@ -18,7 +18,6 @@
 */
 #pragma once
 
-#include "config.h"
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -157,10 +156,6 @@ extern int control_type;
 #define CONTROL_TYPE_MAX 4
 
 
-/////////////////////////////////////
-// the rest only if we have a protocol.
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
-
 /////////////////////////////////////////////////////////////////
 // 'machine' protocol structures and definitions
 //
@@ -298,11 +293,13 @@ typedef struct tag_PROTOCOL_STAT {
     PROTOCOLSTATE noack;
 } PROTOCOL_STAT;
 
-
 // needs PROTOCOL_STAT
-#include "ascii_protocol.h"
+// used in main_ascii_init, external to this file`
+extern int enable_immediate;
 
-
+extern void ascii_add_immediate( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char byte,  char *ascii_out), char* description );
+extern void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out), char *description );
+extern int ascii_init();
 
 ///////////////////////////////////////////////////
 // structure used to gather variables we want to read/write.
@@ -337,14 +334,12 @@ typedef struct tag_PROTOCOL_STAT {
 #define FN_TYPE_PRE_READRESPONSE  5
 #define FN_TYPE_POST_READRESPONSE 6
 
-
 struct tag_PARAMSTAT;
 typedef struct tag_PARAMSTAT PARAMSTAT;
 extern PARAMSTAT *params[256];
 
 // NOTE: content can be NULL if len == 0
 typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len );
-
 
 struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
@@ -357,7 +352,6 @@ struct tag_PARAMSTAT {
 
     PARAMSTAT_FN fn;        // function to handle events
 };
-
 
 
 /////////////////////////////////////////////////////////
@@ -446,7 +440,6 @@ int setParamHandler(unsigned char code, PARAMSTAT_FN callback);
 // get param function handler
 PARAMSTAT_FN getParamHandler(unsigned char code);
 
-#endif
 
 #ifdef __cplusplus
 }
