@@ -17,7 +17,7 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "protocol.h"
+#include "protocol_private.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -62,7 +62,7 @@ static int version = 1;
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x22 SubscribeData
 
-SUBSCRIBEDATA SubscribeData =  { .code=0, .period=0, .count=0, .som=0 };
+PROTOCOL_SUBSCRIBEDATA SubscribeData =  { .code=0, .period=0, .count=0, .som=0 };
 
 void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
 
@@ -78,7 +78,7 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, uns
 
             // Check if subscription already exists for this code
             for (index = 0; index < len; index++) {
-                if(s->subscriptions[index].code == ((SUBSCRIBEDATA*) (param->ptr))->code) {
+                if(s->subscriptions[index].code == ((PROTOCOL_SUBSCRIBEDATA*) (param->ptr))->code) {
                     break;
                 }
             }
@@ -96,8 +96,8 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, uns
             }
 
             // Fill in new subscription when possible; Plausibility check for period
-            if(index < len && ((SUBSCRIBEDATA*) (param->ptr))->period >= 10) {
-                s->subscriptions[index] = *((SUBSCRIBEDATA*) (param->ptr));
+            if(index < len && ((PROTOCOL_SUBSCRIBEDATA*) (param->ptr))->period >= 10) {
+                s->subscriptions[index] = *((PROTOCOL_SUBSCRIBEDATA*) (param->ptr));
                 //char tmp[100];
                 //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, ((SUBSCRIBEDATA*) (param->ptr))->code, ((SUBSCRIBEDATA*) (param->ptr))->period, ((SUBSCRIBEDATA*) (param->ptr))->count, ((SUBSCRIBEDATA*) (param->ptr))->som);
                 //consoleLog(tmp);
@@ -267,48 +267,10 @@ PARAMSTAT initialparams[] = {
     // Protocol Relevant Parameters
     { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions, 0,                 PARAM_R,  fn_paramstat_descriptions },
     { 0x00, "version",                 NULL,  UI_LONG,  &version,           sizeof(int),            PARAM_R,  NULL },
-    { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,     sizeof(SUBSCRIBEDATA),  PARAM_RW, fn_SubscribeData },
+    { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,     sizeof(PROTOCOL_SUBSCRIBEDATA),  PARAM_RW, fn_SubscribeData },
     { 0x23, "protocol stats ack+noack",NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataSum },
     { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataAck },
     { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataNoack },
-
-#ifdef CONTROL_SENSOR
-    { 0x01, "sensor data",             NULL,  UI_NONE,  &contentbuf, sizeof(SENSOR_FRAME),          PARAM_R,  NULL },
-#endif
-#ifdef HALL_INTERRUPTS
-    { 0x02, "hall data",               NULL,  UI_NONE,  &contentbuf, sizeof(HALL_DATA_STRUCT),      PARAM_R,  NULL },
-    { 0x03, "speed control mm/s",      NULL,  UI_NONE,  &contentbuf, sizeof(SPEED_DATA),            PARAM_RW, fn_preWriteClear },
-    { 0x04, "hall position mm",        NULL,  UI_NONE,  &contentbuf, sizeof(POSN),                  PARAM_RW, fn_preWriteClear },
-    { 0x05, "position control increment mm",NULL,UI_NONE,&contentbuf,sizeof(POSN_INCR),             PARAM_RW, fn_preWriteClear },
-    { 0x06, "position control mm",     NULL,  UI_NONE,  &contentbuf, sizeof(POSN_DATA),             PARAM_RW, fn_preWriteClear },
-    { 0x07, "hall position steps",     NULL,  UI_NONE,  &contentbuf, sizeof(POSN),                  PARAM_RW, fn_preWriteClear },
-#endif
-    { 0x08, "electrical measurements", NULL,  UI_NONE,  &contentbuf, sizeof(ELECTRICAL_PARAMS),     PARAM_R,  NULL },
-    { 0x09, "enable motors",           NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),               PARAM_RW, fn_preWriteClear },
-    { 0x0A, "disable poweroff timer",  NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),               PARAM_RW, fn_preWriteClear },
-    { 0x0B, "enable console logs",     NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t ),              PARAM_RW, fn_preWriteClear },
-#ifndef EXCLUDE_DEADRECKONER
-    { 0x0C, "read/clear xyt position", NULL,  UI_3LONG, &contentbuf, sizeof(INTEGER_XYT_POSN),      PARAM_RW, fn_preWriteClear },
-#endif
-    { 0x0D, "PWM control",             NULL,  UI_NONE,  &contentbuf, sizeof(PWM_DATA),              PARAM_RW, fn_preWriteClear },
-    { 0x0E, "simpler PWM",             NULL,  UI_2LONG, &contentbuf, sizeof( ((PWM_DATA *)0)->pwm), PARAM_RW, fn_preWriteClear },
-    { 0x21, "buzzer",                  NULL,  UI_NONE,  &contentbuf, sizeof(BUZZER_DATA),           PARAM_RW, fn_preWriteClear },
-
-#ifdef FLASH_STORAGE
-    { 0x80, "flash magic",             "m",   UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },  // write this with CURRENT_MAGIC to commit to flash
-
-    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
-    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // pid params for Position
-    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
-    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // e.g. 200
-
-    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
-    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // pid params for Speed
-    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
-    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // e.g. 20
-    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
-    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear } // e.g. 20
-#endif
 };
 
 

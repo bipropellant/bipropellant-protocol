@@ -18,11 +18,4 @@
 */
 #pragma once
 
-
-#include "protocol.h"
-// used in main_ascii_init, external to this file`
-extern int enable_immediate;
-
-extern void ascii_add_immediate( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char byte,  char *ascii_out), char* description );
-extern void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out), char *description );
-extern int ascii_init();
+#include "protocol_private.h"

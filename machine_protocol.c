@@ -26,7 +26,7 @@
 
 #include "stm32f1xx_hal.h"
 #include "config.h"
-#include "protocol.h"
+#include "protocol_private.h"
 
 #include <string.h>
 #include <stdlib.h>
