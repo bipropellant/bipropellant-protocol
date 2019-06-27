@@ -271,6 +271,40 @@ PARAMSTAT initialparams[] = {
     { 0x23, "protocol stats ack+noack",NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataSum },
     { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataAck },
     { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataNoack },
+
+    // Sensor (Hoverboard mode)
+    { 0x01, "sensor data",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SENSOR_FRAME),          PARAM_R,  NULL },
+
+    // Control and Measurements
+    { 0x02, "hall data",               NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_HALL_DATA_STRUCT),      PARAM_R,  NULL },
+    { 0x03, "speed control mm/s",      NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SPEED_DATA),            PARAM_RW, fn_preWriteClear },
+    { 0x04, "hall position mm",        NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN),                  PARAM_RW, fn_preWriteClear },
+    { 0x05, "position control increment mm",NULL,UI_NONE,&contentbuf,sizeof(PROTOCOL_POSN_INCR),             PARAM_RW, fn_preWriteClear },
+    { 0x06, "position control mm",     NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN_DATA),             PARAM_RW, fn_preWriteClear },
+    { 0x07, "hall position steps",     NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN),                  PARAM_RW, fn_preWriteClear },
+    { 0x08, "electrical measurements", NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_ELECTRICAL_PARAMS),     PARAM_R,  NULL },
+    { 0x09, "enable motors",           NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),               PARAM_RW, fn_preWriteClear },
+    { 0x0A, "disable poweroff timer",  NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),               PARAM_RW, fn_preWriteClear },
+    { 0x0B, "enable console logs",     NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t ),              PARAM_RW, fn_preWriteClear },
+    { 0x0C, "read/clear xyt position", NULL,  UI_3LONG, &contentbuf, sizeof(PROTOCOL_INTEGER_XYT_POSN),      PARAM_RW, fn_preWriteClear },
+    { 0x0D, "PWM control",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_PWM_DATA),              PARAM_RW, fn_preWriteClear },
+    { 0x0E, "simpler PWM",             NULL,  UI_2LONG, &contentbuf, sizeof( ((PROTOCOL_PWM_DATA *)0)->pwm), PARAM_RW, fn_preWriteClear },
+    { 0x21, "buzzer",                  NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_BUZZER_DATA),           PARAM_RW, fn_preWriteClear },
+
+    // Flash Storage
+    { 0x80, "flash magic",             "m",   UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },  // write this with CURRENT_MAGIC to commit to flash
+
+    { 0x81, "posn kp x 100",           "pkp", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
+    { 0x82, "posn ki x 100",           "pki", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // pid params for Position
+    { 0x83, "posn kd x 100",           "pkd", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
+    { 0x84, "posn pwm lim",            "pl",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // e.g. 200
+
+    { 0x85, "speed kp x 100",          "skp", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
+    { 0x86, "speed ki x 100",          "ski", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // pid params for Speed
+    { 0x87, "speed kd x 100",          "skd", UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear },
+    { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // e.g. 20
+    { 0x89, "max current limit x 100", "cl",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
+    { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &contentbuf, sizeof(short),                 PARAM_RW, fn_preWriteClear } // e.g. 20
 };
 
 
