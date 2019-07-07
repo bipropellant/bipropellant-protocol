@@ -31,11 +31,6 @@
 
 
 
-// if not using from STM32, provide dummy functions from your project...
-extern void (*HAL_Delay)(uint32_t Delay);
-extern void (*HAL_NVIC_SystemReset)(void);
-extern uint32_t (*HAL_GetTick)(void);
-
 
 
 static unsigned char mpGetTxByte(MACHINE_PROTOCOL_TX_BUFFER *buf);
@@ -74,7 +69,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
     case PROTOCOL_STATE_IDLE:
         if ((byte == PROTOCOL_SOM_ACK) || (byte == PROTOCOL_SOM_NOACK)){
             s->curr_msg.SOM = byte;
-            s->last_char_time = HAL_GetTick();
+            s->last_char_time = protocol_GetTick();
             s->state = PROTOCOL_STATE_WAIT_CI;
             s->CS = 0;
         } else {
@@ -85,21 +80,21 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                 ascii_byte(s, byte );
                 //////////////////////////////////////////////////////
             } else {
-                s->last_char_time = HAL_GetTick();
+                s->last_char_time = protocol_GetTick();
                 s->state = PROTOCOL_STATE_BADCHAR;
             }
         }
         break;
 
     case PROTOCOL_STATE_WAIT_CI:
-        s->last_char_time = HAL_GetTick();
+        s->last_char_time = protocol_GetTick();
         s->curr_msg.CI = byte;
         s->CS += byte;
         s->state = PROTOCOL_STATE_WAIT_LEN;
         break;
 
     case PROTOCOL_STATE_WAIT_LEN:
-        s->last_char_time = HAL_GetTick();
+        s->last_char_time = protocol_GetTick();
         s->curr_msg.len = byte;
         s->count = 0;
         s->CS += byte;
@@ -107,7 +102,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
         break;
 
     case PROTOCOL_STATE_WAIT_END:
-        s->last_char_time = HAL_GetTick();
+        s->last_char_time = protocol_GetTick();
         s->curr_msg.bytes[s->count++] = byte;
         s->CS += byte;
 
@@ -147,7 +142,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                         if (s->ack.retries > 0){
                             s->ack.counters.txRetries++;
                             protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
-                            s->ack.last_send_time = HAL_GetTick();
+                            s->ack.last_send_time = protocol_GetTick();
                             s->ack.retries--;
                         } else {
                             s->send_state = PROTOCOL_ACK_TX_IDLE;
@@ -328,7 +323,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             s->ack.counters.tx++;
             protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
-            s->ack.last_send_time = HAL_GetTick();
+            s->ack.last_send_time = protocol_GetTick();
             s->ack.retries = 2;
             return 0;
 
@@ -355,7 +350,7 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg){
             s->ack.counters.tx++;
             protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
-            s->ack.last_send_time = HAL_GetTick();
+            s->ack.last_send_time = protocol_GetTick();
             s->ack.retries = 2;
             return 0;
 
@@ -398,7 +393,7 @@ void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), 
 // called regularly from main.c
 // externed from protocol.h
 void protocol_tick(PROTOCOL_STAT *s){
-    s->last_tick_time = HAL_GetTick();
+    s->last_tick_time = protocol_GetTick();
 
 
     if(s->send_state == PROTOCOL_ACK_TX_WAITING) {
@@ -407,7 +402,7 @@ void protocol_tick(PROTOCOL_STAT *s){
             if (s->ack.retries > 0){
                 s->ack.counters.txRetries++;
                 protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
-                s->ack.last_send_time = HAL_GetTick();
+                s->ack.last_send_time = protocol_GetTick();
                 s->ack.retries--;
             } else {
                 // if we run out of retries, then try to send a next message

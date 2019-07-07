@@ -402,6 +402,14 @@ extern PARAMSTAT *params[256];
 
 
 
+///////////////////////////////////////////////////////
+// Function Pointers to system functions
+//////////////////////////////////////////////////////////
+
+// Need to be assigned to functions "real" system fucntions
+extern void (*protocol_Delay)(uint32_t Delay);
+extern void (*protocol_SystemReset)(void);
+extern uint32_t (*protocol_GetTick)(void);
 
 
 #ifdef __cplusplus

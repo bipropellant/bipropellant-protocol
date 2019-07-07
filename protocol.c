@@ -22,10 +22,19 @@
 #include <stdlib.h>
 
 
-// if not using from STM32, provide dummy functions from your project...
-extern void (*HAL_Delay)(uint32_t Delay);
-extern void (*HAL_NVIC_SystemReset)(void);
-extern uint32_t (*HAL_GetTick)(void);
+///////////////////////////////////////////////////////
+// Function Pointers to system functions
+//////////////////////////////////////////////////////////
+
+// Need to be assigned to functions "real" system fucntions
+uint32_t noTick(void) { return 0; };
+uint32_t (*protocol_GetTick)() = noTick;
+
+void noDelay(uint32_t Delay) {};
+void (*protocol_Delay)(uint32_t Delay) = noDelay;
+
+void noReset(void) {};
+void (*protocol_SystemReset)() = noReset;
 
 
 
@@ -514,8 +523,8 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
 
         case PROTOCOL_CMD_REBOOT:
             //protocol_send_ack(); // we no longer ack from here
-            HAL_Delay(500);
-            HAL_NVIC_SystemReset();
+            protocol_Delay(500);
+            protocol_SystemReset();
             break;
 
         case PROTOCOL_CMD_TEST:
