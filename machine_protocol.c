@@ -24,15 +24,17 @@
 * call protocol_post to send a message
 */
 
-#include "stm32f1xx_hal.h"
-#include "config.h"
 #include "protocol_private.h"
 
 #include <string.h>
 #include <stdlib.h>
 
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
 
+
+// if not using from STM32, provide dummy functions from your project...
+extern void (*HAL_Delay)(uint32_t Delay);
+extern void (*HAL_NVIC_SystemReset)(void);
+extern uint32_t (*HAL_GetTick)(void);
 
 
 
@@ -519,6 +521,3 @@ void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value){
     buf->buff[buf->head] = value;
     buf->head = ((buf->head + 1 ) % MACHINE_PROTOCOL_TX_BUFFER_SIZE);
 }
-
-
-#endif // INCLUDE_PROTOCOL2
