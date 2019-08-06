@@ -31,7 +31,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#if (INCLUDE_PROTOCOL == INCLUDE_PROTOCOL2)
+#if (INCLUDE_PROTOCOL)
 
 
 
@@ -521,4 +521,4 @@ void mpPutTx(MACHINE_PROTOCOL_TX_BUFFER *buf, unsigned char value){
 }
 
 
-#endif // INCLUDE_PROTOCOL2
+#endif // INCLUDE_PROTOCOL
