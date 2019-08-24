@@ -20,12 +20,16 @@
 #include "protocol_private.h"
 #include <string.h>
 #include <stdlib.h>
+#include "pid_autotuner.h"
 
 
 // if not using from STM32, provide dummy functions from your project...
 extern int HAL_Delay(int ms);
 extern int HAL_NVIC_SystemReset();
 
+extern pid_autotune SpeedPidAutoT[2];
+extern pid_autotune PosPidAutoT[2];
+extern bool tuningEnabled; // en
 
 static int initialised_functions = 0;
 
@@ -520,6 +524,22 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
             protocol_post(s, msg);
             // post second immediately to test buffering
             // protocol_post(s, msg);
+            break;
+
+        case PROTOCOL_CMD_TUNE_PID:
+            for (int i = 0; i < 2; i++){
+                if(writevals->code == 1){ // position
+                    tuningEnabled = true;
+                    SetOutput(&PosPidAutoT[i],writevals->content[0]);
+                }else if(writevals->code == 2){ // speed
+                    tuningEnabled = true;
+                    SetOutput(&SpeedPidAutoT[i],writevals->content[0]);
+                }else{
+                    tuningEnabled = false;
+                }
+            }
+
+            protocol_post(s, msg); // necessary?
             break;
 
         case PROTOCOL_CMD_UNKNOWN:

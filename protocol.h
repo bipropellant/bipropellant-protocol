@@ -311,6 +311,8 @@ struct tag_PARAMSTAT {
 // cause unit to restart - no payload
 #define PROTOCOL_CMD_REBOOT 'B'
 
+#define PROTOCOL_CMD_TUNE_PID 'P'
+
 // response to an unkonwn command - maybe payload
 #define PROTOCOL_CMD_UNKNOWN '?'
 
