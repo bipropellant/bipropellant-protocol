@@ -22,9 +22,20 @@
 #include <stdlib.h>
 
 
-// if not using from STM32, provide dummy functions from your project...
-extern int HAL_Delay(int ms);
-extern int HAL_NVIC_SystemReset();
+///////////////////////////////////////////////////////
+// Function Pointers to system functions
+//////////////////////////////////////////////////////////
+
+// Need to be assigned to functions "real" system fucntions
+uint32_t noTick(void) { return 0; };
+uint32_t (*protocol_GetTick)() = noTick;
+
+void noDelay(uint32_t Delay) {};
+void (*protocol_Delay)(uint32_t Delay) = noDelay;
+
+void noReset(void) {};
+void (*protocol_SystemReset)() = noReset;
+
 
 
 static int initialised_functions = 0;
@@ -62,8 +73,6 @@ static int version = 1;
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x22 SubscribeData
 
-PROTOCOL_SUBSCRIBEDATA SubscribeData =  { .code=0, .period=0, .count=0, .som=0 };
-
 void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len ) {
 
     fn_preWriteClear(s, param, fn_type, content, len); // Wipes memory before write (and readresponse is just a differenct type of writing)
@@ -72,20 +81,25 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, uns
 
         case FN_TYPE_POST_WRITE:
         case FN_TYPE_POST_READRESPONSE:
-            ;     // empty statement, labels must not be followed by declarations..
-            int len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
+
+            // Check if length of received data is plausible.
+            if(len != sizeof(PROTOCOL_SUBSCRIBEDATA)) {
+                break;
+            }
+
+            int subscriptions_len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
             int index = 0;
 
             // Check if subscription already exists for this code
-            for (index = 0; index < len; index++) {
-                if(s->subscriptions[index].code == ((PROTOCOL_SUBSCRIBEDATA*) (param->ptr))->code) {
+            for (index = 0; index < subscriptions_len; index++) {
+                if(s->subscriptions[index].code == ((PROTOCOL_SUBSCRIBEDATA*) content)->code) {
                     break;
                 }
             }
 
             // If code was not found, look for vacant subscription slot
-            if(index == len) {
-                for (index = 0; index < len; index++) {
+            if(index == subscriptions_len) {
+                for (index = 0; index < subscriptions_len; index++) {
                     // NOTE: if you set a count of 0, or the count runs out, then
                     // the subscription will be overwritten later -
                     // i.e. you effectively delete it....
@@ -96,8 +110,8 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, uns
             }
 
             // Fill in new subscription when possible; Plausibility check for period
-            if(index < len && ((PROTOCOL_SUBSCRIBEDATA*) (param->ptr))->period >= 10) {
-                s->subscriptions[index] = *((PROTOCOL_SUBSCRIBEDATA*) (param->ptr));
+            if(index < subscriptions_len && ((PROTOCOL_SUBSCRIBEDATA*) content)->period >= 10) {
+                s->subscriptions[index] = *((PROTOCOL_SUBSCRIBEDATA*) content);
                 //char tmp[100];
                 //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, ((SUBSCRIBEDATA*) (param->ptr))->code, ((SUBSCRIBEDATA*) (param->ptr))->period, ((SUBSCRIBEDATA*) (param->ptr))->count, ((SUBSCRIBEDATA*) (param->ptr))->som);
                 //consoleLog(tmp);
@@ -265,12 +279,12 @@ PARAMSTAT *params[256];
 
 PARAMSTAT initialparams[] = {
     // Protocol Relevant Parameters
-    { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions, 0,                 PARAM_R,  fn_paramstat_descriptions },
-    { 0x00, "version",                 NULL,  UI_LONG,  &version,           sizeof(int),            PARAM_R,  NULL },
-    { 0x22, "subscribe data",          NULL,  UI_NONE,  &SubscribeData,     sizeof(PROTOCOL_SUBSCRIBEDATA),  PARAM_RW, fn_SubscribeData },
-    { 0x23, "protocol stats ack+noack",NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataSum },
-    { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataAck },
-    { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),  PARAM_RW, fn_ProtocolcountDataNoack },
+    { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions, 0,                         PARAM_R,  fn_paramstat_descriptions },
+    { 0x00, "version",                 NULL,  UI_LONG,  &version,           sizeof(int),                    PARAM_R,  NULL },
+    { 0x22, "subscribe data",          NULL,  UI_NONE,  &contentbuf,        sizeof(PROTOCOL_SUBSCRIBEDATA), PARAM_RW, fn_SubscribeData },
+    { 0x23, "protocol stats ack+noack",NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          PARAM_RW, fn_ProtocolcountDataSum },
+    { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          PARAM_RW, fn_ProtocolcountDataAck },
+    { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          PARAM_RW, fn_ProtocolcountDataNoack },
 
     // Sensor (Hoverboard mode)
     { 0x01, "sensor data",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SENSOR_FRAME),          PARAM_R,  NULL },
@@ -283,9 +297,9 @@ PARAMSTAT initialparams[] = {
     { 0x06, "position control mm",     NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN_DATA),             PARAM_RW, fn_preWriteClear },
     { 0x07, "hall position steps",     NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN),                  PARAM_RW, fn_preWriteClear },
     { 0x08, "electrical measurements", NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_ELECTRICAL_PARAMS),     PARAM_R,  NULL },
-    { 0x09, "enable motors",           NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),               PARAM_RW, fn_preWriteClear },
-    { 0x0A, "disable poweroff timer",  NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),               PARAM_RW, fn_preWriteClear },
-    { 0x0B, "enable console logs",     NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t ),              PARAM_RW, fn_preWriteClear },
+    { 0x09, "enable motors",           NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),                        PARAM_RW, fn_preWriteClear },
+    { 0x0A, "disable poweroff timer",  NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),                        PARAM_RW, fn_preWriteClear },
+    { 0x0B, "enable console logs",     NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t ),                       PARAM_RW, fn_preWriteClear },
     { 0x0C, "read/clear xyt position", NULL,  UI_3LONG, &contentbuf, sizeof(PROTOCOL_INTEGER_XYT_POSN),      PARAM_RW, fn_preWriteClear },
     { 0x0D, "PWM control",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_PWM_DATA),              PARAM_RW, fn_preWriteClear },
     { 0x0E, "simpler PWM",             NULL,  UI_2LONG, &contentbuf, sizeof( ((PROTOCOL_PWM_DATA *)0)->pwm), PARAM_RW, fn_preWriteClear },
@@ -509,8 +523,8 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
 
         case PROTOCOL_CMD_REBOOT:
             //protocol_send_ack(); // we no longer ack from here
-            HAL_Delay(500);
-            HAL_NVIC_SystemReset();
+            protocol_Delay(500);
+            protocol_SystemReset();
             break;
 
         case PROTOCOL_CMD_TEST:

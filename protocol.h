@@ -28,15 +28,15 @@ extern "C" {
 #pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_PROTOCOL_POSN_DATA {
     // these get set
-    long wanted_posn_mm[2];
+    int32_t wanted_posn_mm[2];
 
     // configurations/constants
-    int posn_max_speed; // max speed in this mode
-    int posn_min_speed; // minimum speed (to get wheels moving)
+    int32_t posn_max_speed; // max speed in this mode
+    int32_t posn_min_speed; // minimum speed (to get wheels moving)
 
     // just so it can be read back
-    long posn_diff_mm[2];
-    long posn_speed_demand[2];
+    int32_t posn_diff_mm[2];
+    int32_t posn_speed_demand[2];
 } PROTOCOL_POSN_DATA;
 #pragma pack(pop)
 
@@ -44,16 +44,16 @@ typedef struct tag_PROTOCOL_POSN_DATA {
 #pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_PROTOCOL_SPEED_DATA {
     // these get set
-    long wanted_speed_mm_per_sec[2];
+    int32_t wanted_speed_mm_per_sec[2];
 
     // configurations/constants
-    int speed_max_power; // max speed in this mode
-    int speed_min_power; // minimum speed (to get wheels moving)
-    int speed_minimum_speed; // below this, we don't ask it to do anything
+    int32_t speed_max_power; // max speed in this mode
+    int32_t speed_min_power; // minimum speed (to get wheels moving)
+    int32_t speed_minimum_speed; // below this, we don't ask it to do anything
 
     // just so it can be read back
-    long speed_diff_mm_per_sec[2];
-    long speed_power_demand[2];
+    int32_t speed_diff_mm_per_sec[2];
+    int32_t speed_power_demand[2];
 } PROTOCOL_SPEED_DATA;
 #pragma pack(pop)
 
@@ -61,12 +61,12 @@ typedef struct tag_PROTOCOL_SPEED_DATA {
 #pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_PROTOCOL_PWM_DATA {
     // these get set
-    long pwm[2];
+    int32_t pwm[2];
 
     // configurations/constants
-    int speed_max_power; // max speed in this mode
-    int speed_min_power; // minimum speed (to get wheels moving)
-    int speed_minimum_pwm; // below this, we don't ask it to do anything
+    int32_t speed_max_power; // max speed in this mode
+    int32_t speed_min_power; // minimum speed (to get wheels moving)
+    int32_t speed_minimum_pwm; // below this, we don't ask it to do anything
 } PROTOCOL_PWM_DATA;
 #pragma pack(pop)
 
@@ -74,18 +74,18 @@ typedef struct tag_PROTOCOL_PWM_DATA {
 
 #pragma pack(push, 4)  // long and float are 4 byte each
 typedef struct tag_PROTOCOL_HALL_DATA_STRUCT{
-    long HallPosn; // 90 per revolution
-    long HallSpeed; // speed part calibrated to speed demand value
+    int32_t HallPosn; // 90 per revolution
+    int32_t HallSpeed; // speed part calibrated to speed demand value
 
     float HallPosnMultiplier; // m per hall segment
 
-    long HallPosn_lastread; // posn offset set via protocol in raw value
-    long HallPosn_mm; // posn in mm
-    long HallPosn_mm_lastread; // posn offset set via protocol in mm
-    long HallSpeed_mm_per_s; // speed in m/s
+    int32_t HallPosn_lastread; // posn offset set via protocol in raw value
+    int32_t HallPosn_mm; // posn in mm
+    int32_t HallPosn_mm_lastread; // posn offset set via protocol in mm
+    int32_t HallSpeed_mm_per_s; // speed in m/s
 
-    unsigned long HallTimeDiff;
-    unsigned long HallSkipped;
+    uint32_t HallTimeDiff;
+    uint32_t HallSkipped;
 } PROTOCOL_HALL_DATA_STRUCT;
 #pragma pack(pop)
 
@@ -95,33 +95,33 @@ typedef struct tag_PROTOCOL_MOTOR_ELECTRICAL{
         float dcAmps;
         float dcAmpsAvgAcc;
         float dcAmpsAvg;
-        int r1;
-        int r2;
-        int q;
+        int32_t r1;
+        int32_t r2;
+        int32_t q;
 
-        int dcAmpsx100;
+        int32_t dcAmpsx100;
 
-        int pwm_limiter;
-        int pwm_requested;
-        int pwm_actual;
+        int32_t pwm_limiter;
+        int32_t pwm_requested;
+        int32_t pwm_actual;
 
-        unsigned int limiter_count;
+        uint32_t limiter_count;
 } PROTOCOL_MOTOR_ELECTRICAL;
 #pragma pack(pop)
 
 #pragma pack(push, 4) // all used types (float and int) are 4 bytes
 typedef struct tag_PROTOCOL_ELECTRICAL_PARAMS{
-    int bat_raw;
+    int32_t bat_raw;
     float batteryVoltage;
 
-    int board_temp_raw;
+    int32_t board_temp_raw;
     float board_temp_filtered;
     float board_temp_deg_c;
 
-    int charging;
+    int32_t charging;
 
-    int dcCurLim; // amps*100
-    int dc_adc_limit; // limit expressed in terms of ADC units.
+    int32_t dcCurLim; // amps*100
+    int32_t dc_adc_limit; // limit expressed in terms of ADC units.
 
     PROTOCOL_MOTOR_ELECTRICAL motors[2];
 
@@ -142,9 +142,9 @@ typedef struct tag_PROTOCOL_sensor_frame{
 
 #pragma pack(push, 4)  // since on 'long' are used, alignment can be optimized for 4 bytes
 typedef struct PROTOCOL_INTEGER_XYT_POSN_tag {
-    long x;
-    long y;
-    long degrees;
+    int32_t x;
+    int32_t y;
+    int32_t degrees;
 } PROTOCOL_INTEGER_XYT_POSN;
 #pragma pack(pop)
 
@@ -159,17 +159,17 @@ typedef struct {
 
 #pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_PROTOCOL_POSN {
-    long LeftAbsolute;
-    long RightAbsolute;
-    long LeftOffset;
-    long RightOffset;
+    int32_t LeftAbsolute;
+    int32_t RightAbsolute;
+    int32_t LeftOffset;
+    int32_t RightOffset;
 } PROTOCOL_POSN;
 #pragma pack(pop)
 
 #pragma pack(push, 4)  // all used data types are 4 byte
 typedef struct tag_PROTOCOL_POSN_INCR {
-    long Left;
-    long Right;
+    int32_t Left;
+    int32_t Right;
 } PROTOCOL_POSN_INCR;
 #pragma pack(pop)
 
@@ -227,16 +227,16 @@ typedef struct tag_MACHINE_PROTOCOL_TX_BUFFER {
 
 #pragma pack(push, 4) // all used data types are 4 byte
 typedef struct tag_PROTOCOLCOUNT {
-    unsigned long rx;              // Count of received messages (valid CS)
-    unsigned long rxMissing;       // If message IDs went missing..
-    unsigned long tx;              // Count of sent messages (ACK, NACK and retries do not count)
-    unsigned int  txRetries;       // how often were messages resend?
-    unsigned int  txFailed;        // TX Messages which couldn't be deliveredr. No retries left.
+    uint32_t rx;              // Count of received messages (valid CS)
+    uint32_t rxMissing;       // If message IDs went missing..
+    uint32_t tx;              // Count of sent messages (ACK, NACK and retries do not count)
+    uint32_t  txRetries;       // how often were messages resend?
+    uint32_t  txFailed;        // TX Messages which couldn't be deliveredr. No retries left.
 
-    unsigned int  unwantedacks;              // count of unwated ACK messages
-    unsigned int  unwantednacks;             // count of unwanted NACK messges
-    unsigned int  unknowncommands;           // count of messages with unknown commands
-    unsigned int  unplausibleresponse;       // count of unplausible replies
+    uint32_t  unwantedacks;              // count of unwated ACK messages
+    uint32_t  unwantednacks;             // count of unwanted NACK messges
+    uint32_t  unknowncommands;           // count of messages with unknown commands
+    uint32_t  unplausibleresponse;       // count of unplausible replies
 } PROTOCOLCOUNT;
 #pragma pack(pop)
 
@@ -402,6 +402,14 @@ extern PARAMSTAT *params[256];
 
 
 
+///////////////////////////////////////////////////////
+// Function Pointers to system functions
+//////////////////////////////////////////////////////////
+
+// Need to be assigned to functions "real" system fucntions
+extern void (*protocol_Delay)(uint32_t Delay);
+extern void (*protocol_SystemReset)(void);
+extern uint32_t (*protocol_GetTick)(void);
 
 
 #ifdef __cplusplus
