@@ -189,7 +189,7 @@ typedef struct tag_PROTOCOL_SUBSCRIBEDATA {
     unsigned int period;             // how often should the information be sent?
     int count;                       // how many messages shall be sent? -1 for infinity
     char som;                        // which SOM shall be used? with or without ACK
-    unsigned long next_send_time;    // last time a message requiring an ACK was sent
+    uint32_t next_send_time;    // last time a message requiring an ACK was sent
 
 } PROTOCOL_SUBSCRIBEDATA;
 #pragma pack(pop)
@@ -246,7 +246,7 @@ typedef struct tag_PROTOCOLSTATE {
     char retries;                            // number of retries left to send message
     int lastTXCI;                            // CI of last sent message
     int lastRXCI;                            // CI of last received message in ACKed stream
-    unsigned long last_send_time;            // last time a message requiring an ACK was sent
+    uint32_t last_send_time;            // last time a message requiring an ACK was sent
 
     PROTOCOLCOUNT counters;                  // Statistical data of the protocol performance
     MACHINE_PROTOCOL_TX_BUFFER TxBuffer;     // Buffer for Messages to be sent
@@ -256,9 +256,9 @@ typedef struct tag_PROTOCOLSTATE {
 
 typedef struct tag_PROTOCOL_STAT {
     char allow_ascii;                     // If set to 0, ascii protocol is not used
-    unsigned long last_tick_time;         // last time the tick function was called
+    uint32_t last_tick_time;         // last time the tick function was called
     char state;                           // state used in protocol_byte to receive messages
-    unsigned long last_char_time;         // last time a character was received
+    uint32_t last_char_time;         // last time a character was received
     unsigned char CS;                     // temporary storage to calculate Checksum
     unsigned char count;                  // index pointing to last received byte
     PROTOCOL_MSG2 curr_msg;               // received message storage
