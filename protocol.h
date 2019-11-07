@@ -252,6 +252,14 @@ typedef struct tag_PROTOCOLSTATE {
     MACHINE_PROTOCOL_TX_BUFFER TxBuffer;     // Buffer for Messages to be sent
 } PROTOCOLSTATE;
 
+typedef struct tag_ASCII {
+    int enable_immediate;
+    int initialised;
+    char ascii_cmd[20];
+    char ascii_out[512];
+    int ascii_posn;
+    int8_t asciiProtocolUnlocked;
+} ASCIISTATE;
 
 struct tag_PARAMSTAT;
 typedef struct tag_PARAMSTAT PARAMSTAT;
@@ -278,6 +286,7 @@ typedef struct tag_PROTOCOL_STAT {
     PROTOCOLSTATE ack;
     PROTOCOLSTATE noack;
     PARAMSTAT *params[256];
+    ASCIISTATE ascii;
 } PROTOCOL_STAT;
 
 
@@ -367,7 +376,7 @@ struct tag_PARAMSTAT {
 /////////////////////////////////////////////////////////
 extern void ascii_add_immediate( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char byte,  char *ascii_out), char* description );
 extern void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out), char *description );
-extern int ascii_init();
+extern int ascii_init(PROTOCOL_STAT *s);
 // Set entry in params
 extern int setParam( PROTOCOL_STAT *s, PARAMSTAT *param );
 /////////////////////////////////////////////////////////////////
@@ -391,16 +400,6 @@ void protocol_tick(PROTOCOL_STAT *s);
 // initialize protocol
 int protocol_init(PROTOCOL_STAT *s);
 /////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////
-// PUBLIC variables
-//////////////////////////////////////////////////////////
-
-// used to enable immediate mode (action on keypress)
-extern int enable_immediate;
-// used to display help
-
-
 
 ///////////////////////////////////////////////////////
 // Function Pointers to system functions

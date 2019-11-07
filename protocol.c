@@ -409,7 +409,7 @@ int protocol_init(PROTOCOL_STAT *s) {
         error += setParams(s, initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
         initialised_functions = 1;
         // yes, may be called multiple times, but checks internally.
-        ascii_init();
+        ascii_init(s);
     }
 
     return error;
