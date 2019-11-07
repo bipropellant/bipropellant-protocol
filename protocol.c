@@ -40,8 +40,6 @@ void (*protocol_SystemReset)() = noReset;
 
 static int initialised_functions = 0;
 
-// forward declaration
-extern PARAMSTAT *params[];
 //////////////////////////////////////////////
 // variables you want to read/write here. Only common used ones, specific ones below.
 
@@ -219,12 +217,12 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
                 count = content[1];
             }
 
-            if (first >= (sizeof(params)/sizeof(params[0]))) {
-                params[0]->len = 0;
+            if (first >= (sizeof(s->params)/sizeof(s->params[0]))) {
+                s->params[0]->len = 0;
                 return;
             }
-            if (first + count >= (sizeof(params)/sizeof(params[0]))){
-                count = (sizeof(params)/sizeof(params[0])) - first;
+            if (first + count >= (sizeof(s->params)/sizeof(s->params[0]))){
+                count = (sizeof(s->params)/sizeof(s->params[0])) - first;
             }
 
             // now loop over requested entries until no more will fit in buffer,
@@ -233,21 +231,21 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
             int len_out = 0;
             char *p = paramstat_descriptions.descriptions;
             for (int i = first; i < first+count; i++){
-                if(params[i] != NULL) {
+                if(s->params[i] != NULL) {
                     int desc_len = 0;
-                    if (params[i]->description) {
-                        desc_len = strlen(params[i]->description);
+                    if (s->params[i]->description) {
+                        desc_len = strlen(s->params[i]->description);
                     }
                     DESCRIPTION *d = (DESCRIPTION *)p;
                     if (len_out+sizeof(*d)-sizeof(d->description)+desc_len+1 > sizeof(paramstat_descriptions.descriptions)){
                         break;
                     }
                     d->len = sizeof(*d)-sizeof(d->description)+desc_len+1;
-                    d->code = params[i]->code;
-                    d->var_len = params[i]->len;
-                    d->var_type = params[i]->ui_type;
+                    d->code = s->params[i]->code;
+                    d->var_len = s->params[i]->len;
+                    d->var_type = s->params[i]->ui_type;
                     if (desc_len) {
-                        strcpy(d->description, params[i]->description);
+                        strcpy(d->description, s->params[i]->description);
                     } else {
                         d->description[0] = 0;
                     }
@@ -274,8 +272,6 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 // NOTE: Don't start uistr with 'a'
-PARAMSTAT *params[256];
-
 
 PARAMSTAT initialparams[] = {
     // Protocol Relevant Parameters
@@ -324,7 +320,7 @@ PARAMSTAT initialparams[] = {
 
 /////////////////////////////////////////////
 // Set entry in params
-int setParam(PARAMSTAT *param) {
+int setParam(PROTOCOL_STAT *s, PARAMSTAT *param) {
 
     if(param == NULL) return 1;   // Failure, got NULL pointer
 
@@ -333,37 +329,37 @@ int setParam(PARAMSTAT *param) {
         return 1;                 // Too long, Failure
     }
 
-    if( param->code < (sizeof(params)/sizeof(params[0])) ) {
-        params[param->code] = param;
+    if( param->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+        s->params[param->code] = param;
         return 0; // Successfully assigned
     }
 
     return 1; // Failure, index too big.
 }
 
-int setParams( PARAMSTAT params[], int len) {
+int setParams(PROTOCOL_STAT *s, PARAMSTAT params[], int len) {
     int error = 0;
     for (int i = 0; i < len; i++) {
-        error += setParam(&params[i]);
+        error += setParam(s, &params[i]);
     }
     return error;
 }
 
 /////////////////////////////////////////////
 // Change variable at runtime
-int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw) {
+int setParamVariable(PROTOCOL_STAT *s, unsigned char code, char ui_type, void *ptr, int len, char rw) {
 
     // Check if len can actually be received
     if( len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
         return 1;                           // Too long, Failure
     }
 
-    if( code < (sizeof(params)/sizeof(params[0])) ) {
-        if(params[code] != NULL) {
-            params[code]->ui_type = ui_type;
-            params[code]->ptr = ptr;
-            params[code]->len = len;
-            params[code]->rw = rw;
+    if( code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+        if(s->params[code] != NULL) {
+            s->params[code]->ui_type = ui_type;
+            s->params[code]->ptr = ptr;
+            s->params[code]->len = len;
+            s->params[code]->rw = rw;
             return 0;                       // Success
         }
     }
@@ -372,11 +368,11 @@ int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char 
 
 /////////////////////////////////////////////
 // Register new function handler at runtime
-int setParamHandler(unsigned char code, PARAMSTAT_FN callback) {
+int setParamHandler(PROTOCOL_STAT *s, unsigned char code, PARAMSTAT_FN callback) {
 
-    if( code < (sizeof(params)/sizeof(params[0])) ) {
-        if(params[code] == NULL) return 1;
-        params[code]->fn = callback;
+    if( code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+        if(s->params[code] == NULL) return 1;
+        s->params[code]->fn = callback;
         return 0; // Successfully assigned
     }
 
@@ -385,11 +381,11 @@ int setParamHandler(unsigned char code, PARAMSTAT_FN callback) {
 
 /////////////////////////////////////////////
 // get param function handler
-PARAMSTAT_FN getParamHandler(unsigned char code) {
+PARAMSTAT_FN getParamHandler(PROTOCOL_STAT *s, unsigned char code) {
 
-    if( code < (sizeof(params)/sizeof(params[0])) ) {
-        if(params[code] != NULL) {
-            return params[code]->fn;
+    if( code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+        if(s->params[code] != NULL) {
+            return s->params[code]->fn;
         }
     }
 
@@ -410,7 +406,7 @@ int protocol_init(PROTOCOL_STAT *s) {
 
     int error = 0;
     if (!initialised_functions) {
-        error += setParams(initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
+        error += setParams(s, initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
         initialised_functions = 1;
         // yes, may be called multiple times, but checks internally.
         ascii_init();
@@ -427,18 +423,18 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
 
     switch (writevals->cmd){
         case PROTOCOL_CMD_READVAL: {
-            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
-                if(params[writevals->code] != NULL) {
-                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_PRE_READ, writevals->content, msg->len-2 ); // NOTE: re-uses the msg object (part of stats)
-                    unsigned char *src = params[writevals->code]->ptr;
-                    for (int j = 0; j < params[writevals->code]->len; j++){
+            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[writevals->code] != NULL) {
+                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], FN_TYPE_PRE_READ, writevals->content, msg->len-2 ); // NOTE: re-uses the msg object (part of stats)
+                    unsigned char *src = s->params[writevals->code]->ptr;
+                    for (int j = 0; j < s->params[writevals->code]->len; j++){
                         writevals->content[j] = *(src++);
                     }
-                    msg->len = 1+1+params[writevals->code]->len;  // command + code + data len only
+                    msg->len = 1+1+s->params[writevals->code]->len;  // command + code + data len only
                     writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
                     // send back with 'read' command plus data like write.
                     protocol_post(s, msg);
-                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_POST_READ, writevals->content, msg->len-2 );
+                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], FN_TYPE_POST_READ, writevals->content, msg->len-2 );
                     break;
                 }
             }
@@ -451,18 +447,18 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         }
 
         case PROTOCOL_CMD_READVALRESPONSE: {
-            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
-                if(params[writevals->code] != NULL) {
-                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_PRE_READRESPONSE, writevals->content, msg->len-2 );
+            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[writevals->code] != NULL) {
+                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], FN_TYPE_PRE_READRESPONSE, writevals->content, msg->len-2 );
 
-                    unsigned char *dest = params[writevals->code]->ptr;
+                    unsigned char *dest = s->params[writevals->code]->ptr;
                     // ONLY copy what we have, else we're stuffing random data in.
                     // e.g. is setting posn, structure is 8 x 4 bytes,
                     // but we often only want to set the first 8
-                    for (int j = 0; ((j < params[writevals->code]->len) && (j < (msg->len-2))); j++){
+                    for (int j = 0; ((j < s->params[writevals->code]->len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];
                     }
-                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_POST_READRESPONSE, writevals->content,  msg->len-2 );
+                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], FN_TYPE_POST_READRESPONSE, writevals->content,  msg->len-2 );
                     break;
                 }
             }
@@ -476,8 +472,8 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         }
 
         case PROTOCOL_CMD_WRITEVALRESPONSE:{
-            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
-                if(params[writevals->code] != NULL) {
+            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[writevals->code] != NULL) {
                     break;
                 }
             }
@@ -491,16 +487,16 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         }
 
         case PROTOCOL_CMD_WRITEVAL:{
-            if( writevals->code < (sizeof(params)/sizeof(params[0])) ) {
-                if(params[writevals->code] != NULL) {
-                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_PRE_WRITE, writevals->content, msg->len-2 );
+            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[writevals->code] != NULL) {
+                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], FN_TYPE_PRE_WRITE, writevals->content, msg->len-2 );
                     // NOTE: re-uses the msg object (part of stats)
-                    unsigned char *dest = params[writevals->code]->ptr;
+                    unsigned char *dest = s->params[writevals->code]->ptr;
 
                     // ONLY copy what we have, else we're stuffing random data in.
                     // e.g. is setting posn, structure is 8 x 4 bytes,
                     // but we often only want to set the first 8
-                    for (int j = 0; ((j < params[writevals->code]->len) && (j < (msg->len-2))); j++){
+                    for (int j = 0; ((j < s->params[writevals->code]->len) && (j < (msg->len-2))); j++){
                         *(dest++) = writevals->content[j];
                     }
                     msg->len = 1+1+1; // cmd+code+'1' only
@@ -508,7 +504,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
                     writevals->content[0] = 1; // say we wrote it
                     // send back with 'write' command with no data.
                     protocol_post(s, msg);
-                    if (params[writevals->code]->fn) params[writevals->code]->fn( s, params[writevals->code], FN_TYPE_POST_WRITE, writevals->content, msg->len-2 );
+                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], FN_TYPE_POST_WRITE, writevals->content, msg->len-2 );
                     break;
                 }
             }

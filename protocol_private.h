@@ -91,7 +91,7 @@ int mpTxQueued(MACHINE_PROTOCOL_TX_BUFFER *buf);
 extern void (*debugprint)(const char str[]);
 
 // get param function handler
-PARAMSTAT_FN getParamHandler(unsigned char code);
+PARAMSTAT_FN getParamHandler( PROTOCOL_STAT *s, unsigned char code );
 
 
 #ifdef __cplusplus

@@ -253,6 +253,8 @@ typedef struct tag_PROTOCOLSTATE {
 } PROTOCOLSTATE;
 
 
+struct tag_PARAMSTAT;
+typedef struct tag_PARAMSTAT PARAMSTAT;
 
 typedef struct tag_PROTOCOL_STAT {
     char allow_ascii;                     // If set to 0, ascii protocol is not used
@@ -275,10 +277,9 @@ typedef struct tag_PROTOCOL_STAT {
 
     PROTOCOLSTATE ack;
     PROTOCOLSTATE noack;
+    PARAMSTAT *params[256];
 } PROTOCOL_STAT;
 
-struct tag_PARAMSTAT;
-typedef struct tag_PARAMSTAT PARAMSTAT;
 
 // NOTE: content can be NULL if len == 0
 typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len );
@@ -368,13 +369,13 @@ extern void ascii_add_immediate( unsigned char letter, int (*fn)(PROTOCOL_STAT *
 extern void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out), char *description );
 extern int ascii_init();
 // Set entry in params
-extern int setParam(PARAMSTAT *param);
+extern int setParam( PROTOCOL_STAT *s, PARAMSTAT *param );
 /////////////////////////////////////////////////////////////////
 // Change variable at runtime
-extern int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw);
+extern int setParamVariable( PROTOCOL_STAT *s, unsigned char code, char ui_type, void *ptr, int len, char rw );
 /////////////////////////////////////////////////////////////////
 // Register new function handler at runtime
-extern int setParamHandler(unsigned char code, PARAMSTAT_FN callback);
+extern int setParamHandler( PROTOCOL_STAT *s, unsigned char code, PARAMSTAT_FN callback );
 /////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////
@@ -398,7 +399,6 @@ int protocol_init(PROTOCOL_STAT *s);
 // used to enable immediate mode (action on keypress)
 extern int enable_immediate;
 // used to display help
-extern PARAMSTAT *params[256];
 
 
 
