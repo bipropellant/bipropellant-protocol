@@ -273,7 +273,7 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_
 
 // NOTE: Don't start uistr with 'a'
 
-PARAMSTAT initialparams[] = {
+const static PARAMSTAT initialparams[] = {
     // Protocol Relevant Parameters
     { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions, 0,                         PARAM_R,  fn_paramstat_descriptions },
     { 0x00, "version",                 NULL,  UI_LONG,  &version,           sizeof(int),                    PARAM_R,  NULL },
@@ -337,10 +337,23 @@ int setParam(PROTOCOL_STAT *s, PARAMSTAT *param) {
     return 1; // Failure, index too big.
 }
 
+
 int setParams(PROTOCOL_STAT *s, PARAMSTAT params[], int len) {
     int error = 0;
     for (int i = 0; i < len; i++) {
         error += setParam(s, &params[i]);
+    }
+    return error;
+}
+
+int setParamCopy(PROTOCOL_STAT *s, PARAMSTAT param) {
+    return setParam(s, &param);
+}
+
+int setParamsCopy(PROTOCOL_STAT *s, const PARAMSTAT params[], int len) {
+    int error = 0;
+    for (int i = 0; i < len; i++) {
+        error += setParamCopy(s, params[i]);
     }
     return error;
 }
@@ -406,7 +419,7 @@ int protocol_init(PROTOCOL_STAT *s) {
 
     int error = 0;
     if (!initialised_functions) {
-        error += setParams(s, initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
+        error += setParamsCopy(s, initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
         initialised_functions = 1;
         // yes, may be called multiple times, but checks internally.
         ascii_init(s);
