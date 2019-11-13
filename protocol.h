@@ -291,7 +291,7 @@ typedef struct tag_PROTOCOL_STAT {
 
 
 // NOTE: content can be NULL if len == 0
-typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len );
+typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg );
 
 struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
@@ -300,7 +300,6 @@ struct tag_PARAMSTAT {
     char ui_type;           // only UI_NONE or UI_SHORT
     void *ptr;              // pointer to value
     int len;                // length of value
-    char rw;                // PARAM_R or PARAM_RW
 
     PARAMSTAT_FN fn;        // function to handle events
 };
@@ -361,15 +360,6 @@ struct tag_PARAMSTAT {
 // #define UI_8CHAR 0x81
 // #define UI_POSN 0x03 - custom structure type.
 
-#define FN_TYPE_PRE_READ          1
-#define FN_TYPE_POST_READ         2
-#define FN_TYPE_PRE_WRITE         3
-#define FN_TYPE_POST_WRITE        4
-#define FN_TYPE_PRE_READRESPONSE  5
-#define FN_TYPE_POST_READRESPONSE 6
-
-
-
 
 //////////////////////////////////////////////////////
 // PUBLIC functions
@@ -381,11 +371,13 @@ extern int ascii_init(PROTOCOL_STAT *s);
 extern int setParam( PROTOCOL_STAT *s, PARAMSTAT *param );
 /////////////////////////////////////////////////////////////////
 // Change variable at runtime
-extern int setParamVariable( PROTOCOL_STAT *s, unsigned char code, char ui_type, void *ptr, int len, char rw );
+extern int setParamVariable( PROTOCOL_STAT *s, unsigned char code, char ui_type, void *ptr, int len);
 /////////////////////////////////////////////////////////////////
 // Register new function handler at runtime
 extern int setParamHandler( PROTOCOL_STAT *s, unsigned char code, PARAMSTAT_FN callback );
 /////////////////////////////////////////////////////////////////
+// Default Param Handler, replies to Messages
+void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg );
 
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop

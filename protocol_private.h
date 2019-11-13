@@ -52,16 +52,7 @@ typedef struct tag_PROTOCOL_BYTES {
 #pragma pack(pop)
 
 
-
 // content of 'bytes' above, for single byte commands
-#pragma pack(push, 1)
-typedef struct tag_PROTOCOL_BYTES_READVALS {
-    unsigned char cmd; // 'R'
-    unsigned char code; // code of value to read
-} PROTOCOL_BYTES_READVALS;
-#pragma pack(pop)
-
-
 #pragma pack(push, 1)
 typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
     unsigned char cmd; // 'W'

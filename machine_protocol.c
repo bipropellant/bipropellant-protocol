@@ -456,12 +456,12 @@ void protocol_tick(PROTOCOL_STAT *s){
 
                 PROTOCOL_MSG2 newMsg;
                 memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG2));
-                PROTOCOL_BYTES_READVALS *readvals = (PROTOCOL_BYTES_READVALS *) &(newMsg.bytes);
+                PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) &(newMsg.bytes);
 
-                readvals->cmd  = PROTOCOL_CMD_READVAL;
-                readvals->code = s->subscriptions[index].code;
+                writevals->cmd  = PROTOCOL_CMD_READVAL;
+                writevals->code = s->subscriptions[index].code;
                 newMsg.SOM = s->subscriptions[index].som;
-                newMsg.len = sizeof(readvals->cmd) + sizeof(readvals->code) + 1; // 1 for Checksum
+                newMsg.len = sizeof(writevals->cmd) + sizeof(writevals->code) + 1; // 1 for Checksum
 
                 protocol_process_message(s, &newMsg);
 
