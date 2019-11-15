@@ -140,7 +140,7 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
         case PROTOCOL_CMD_WRITEVAL:
         case PROTOCOL_CMD_READVALRESPONSE:
         {
-            int len = msg->len-2;
+            int len = msg->len-3;
             PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
             // Check if length of received data is plausible.
@@ -426,14 +426,13 @@ int setParams(PROTOCOL_STAT *s, PARAMSTAT params[], int len) {
     return error;
 }
 
-int setParamCopy(PROTOCOL_STAT *s, PARAMSTAT param) {
-    return setParam(s, &param);
-}
 
 int setParamsCopy(PROTOCOL_STAT *s, const PARAMSTAT params[], int len) {
     int error = 0;
     for (int i = 0; i < len; i++) {
-        error += setParamCopy(s, params[i]);
+        PARAMSTAT *newParam = (PARAMSTAT *) malloc( sizeof(PARAMSTAT) );
+        memcpy(newParam, &params[i], sizeof(PARAMSTAT));
+        error += setParam(s, newParam);
     }
     return error;
 }
