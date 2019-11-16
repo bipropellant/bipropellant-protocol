@@ -151,7 +151,7 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
         case PROTOCOL_CMD_READVALRESPONSE:
         {
             if(msg) {
-                int len = msg->len-3;
+                int len = msg->len-2;
             PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
             // Check if length of received data is plausible.

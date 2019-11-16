@@ -461,7 +461,7 @@ void protocol_tick(PROTOCOL_STAT *s){
                 writevals->cmd  = PROTOCOL_CMD_READVAL;
                 writevals->code = s->subscriptions[index].code;
                 newMsg.SOM = s->subscriptions[index].som;
-                newMsg.len = sizeof(writevals->cmd) + sizeof(writevals->code) + 1; // 1 for Checksum
+                newMsg.len = sizeof(writevals->cmd) + sizeof(writevals->code);
 
                 protocol_process_message(s, &newMsg);
 
