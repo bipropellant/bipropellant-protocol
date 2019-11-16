@@ -43,23 +43,32 @@ void (*protocol_SystemReset)() = noReset;
 // Default temporary storage for received values
 unsigned char contentbuf[sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content )];
 
-
-void protocol_process_SendValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
-
+void protocol_process_ReadValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
+    if(msg) {
     PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
     unsigned char *src = s->params[writevals->code]->ptr;
     for (int j = 0; j < s->params[writevals->code]->len; j++){
         writevals->content[j] = *(src++);
     }
+    }
+}
+
+void protocol_process_ReadAndSendValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
+    if(msg) {
+        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
+
+        protocol_process_ReadValue(s, msg);
+
     msg->len = 1+1+s->params[writevals->code]->len;  // command + code + data len only
     writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
     // send back with 'read' command plus data like write.
     protocol_post(s, msg);
 }
+}
 
 void protocol_process_WriteValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
-
+    if(msg) {
     PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
     unsigned char *dest = s->params[writevals->code]->ptr;
@@ -70,9 +79,10 @@ void protocol_process_WriteValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         *(dest++) = writevals->content[j];
     }
 }
+}
 
 void protocol_process_cmdWritevalAndRespond(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
-
+    if(msg) {
     PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
     protocol_process_WriteValue(s, msg);
@@ -82,14 +92,17 @@ void protocol_process_cmdWritevalAndRespond(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg
     writevals->content[0] = 1; // say we wrote it
     // send back with 'write' command with no data.
     protocol_post(s, msg);
-
+    }
 }
 
 
 void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
-            protocol_process_SendValue(s, msg);
+            protocol_process_ReadAndSendValue(s, msg);
+            break;
+        case PROTOCOL_CMD_SILENTREAD:
+            protocol_process_ReadValue(s, msg);
             break;
         case PROTOCOL_CMD_READVALRESPONSE:
             protocol_process_WriteValue(s, msg);
@@ -137,7 +150,8 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
         case PROTOCOL_CMD_WRITEVAL:
         case PROTOCOL_CMD_READVALRESPONSE:
         {
-            int len = msg->len-3;
+            if(msg) {
+                int len = msg->len-3;
             PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
             // Check if length of received data is plausible.
@@ -176,6 +190,7 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
             } else {
                 // TODO. Inform sender??
                 // consoleLog("no subscriptions available\n");
+                }
             }
             break;
         }
@@ -191,6 +206,7 @@ void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
+        case PROTOCOL_CMD_SILENTREAD:
             ProtocolcountData.rx                  = s->ack.counters.rx                  + s->noack.counters.rx;
             ProtocolcountData.rxMissing           = s->ack.counters.rxMissing           + s->noack.counters.rxMissing;
             ProtocolcountData.tx                  = s->ack.counters.tx                  + s->noack.counters.tx;
@@ -207,6 +223,7 @@ void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char
 
     switch (cmd) {
         case PROTOCOL_CMD_WRITEVAL:
+        case PROTOCOL_CMD_READVALRESPONSE:
             s->ack.counters = ProtocolcountData;
             s->noack.counters = ProtocolcountData;
             break;
@@ -217,6 +234,7 @@ void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
+        case PROTOCOL_CMD_SILENTREAD:
             ProtocolcountData = s->ack.counters;
             break;
     }
@@ -225,6 +243,7 @@ void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char
 
     switch (cmd) {
         case PROTOCOL_CMD_WRITEVAL:
+        case PROTOCOL_CMD_READVALRESPONSE:
             s->ack.counters = ProtocolcountData;
             break;
     }
@@ -235,6 +254,7 @@ void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned ch
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
+        case PROTOCOL_CMD_SILENTREAD:
             ProtocolcountData = s->noack.counters;
             break;
     }
@@ -243,6 +263,7 @@ void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned ch
 
     switch (cmd) {
         case PROTOCOL_CMD_WRITEVAL:
+        case PROTOCOL_CMD_READVALRESPONSE:
             s->noack.counters = ProtocolcountData;
             break;
     }
@@ -274,8 +295,9 @@ typedef struct tag_description {
 void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
+        case PROTOCOL_CMD_SILENTREAD:
         {
-
+            if(msg) {
             int len = msg->len-2;
             PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
@@ -331,6 +353,7 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned ch
             paramstat_descriptions.first = first;
             paramstat_descriptions.count_read = actual_count;
             param->len = sizeof(DESCRIPTIONS) - sizeof(paramstat_descriptions.descriptions) + len_out;
+            }
             break;
         }
     }
@@ -339,7 +362,10 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned ch
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
+        case PROTOCOL_CMD_SILENTREAD:
+            if(msg) {
             param->len = 0; // reset to zero
+            }
             break;
     }
 }
@@ -511,6 +537,16 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
     PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
     switch (writevals->cmd){
+        case PROTOCOL_CMD_SILENTREAD: {
+            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[writevals->code] != NULL) {
+                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], writevals->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
+                    break;
+                }
+            }
+            break;
+        }
+
         case PROTOCOL_CMD_READVAL: {
             if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
                 if(s->params[writevals->code] != NULL) {

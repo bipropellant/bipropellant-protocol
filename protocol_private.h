@@ -36,33 +36,6 @@ extern "C" {
 /////////////////////////////////////////////////////////////////
 
 
-#pragma pack(push, 1)
-typedef struct tag_PROTOCOL_LEN_ONWARDS {
-    unsigned char len; // len is len of ALL bytes to follow, including CS
-    unsigned char bytes[sizeof( ((PROTOCOL_MSG2 *)0)->bytes )];  // variable number of data bytes, with a checksum on the end, cmd is first
-} PROTOCOL_LEN_ONWARDS;
-#pragma pack(pop)
-
-// content of 'bytes' above, for single byte commands
-#pragma pack(push, 1)
-typedef struct tag_PROTOCOL_BYTES {
-    unsigned char cmd; //
-    unsigned char bytes[sizeof( ((PROTOCOL_MSG2 *)0)->bytes ) - sizeof(unsigned char)]; // cmd is part of bytes and needs to be substracted
-} PROTOCOL_BYTES;
-#pragma pack(pop)
-
-
-// content of 'bytes' above, for single byte commands
-#pragma pack(push, 1)
-typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
-    unsigned char cmd; // 'W'
-    unsigned char code; // code of value to write
-    unsigned char content[sizeof( ((PROTOCOL_MSG2 *)0)->bytes ) - sizeof(unsigned char) - sizeof(unsigned char)]; // cmd and code are part of bytes and need to be substracted
-} PROTOCOL_BYTES_WRITEVALS;
-#pragma pack(pop)
-
-
-
 
 
 /////////////////////////////////////////////////////////////////

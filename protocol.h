@@ -206,6 +206,16 @@ typedef struct tag_PROTOCOL_MSG2 {
 #pragma pack(pop)
 
 
+// content of 'bytes' above, for single byte commands
+#pragma pack(push, 1)
+typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
+    unsigned char cmd; // 'W'
+    unsigned char code; // code of value to write
+    unsigned char content[sizeof( ((PROTOCOL_MSG2 *)0)->bytes ) - sizeof(unsigned char) - sizeof(unsigned char)]; // cmd and code are part of bytes and need to be substracted
+} PROTOCOL_BYTES_WRITEVALS;
+#pragma pack(pop)
+
+
 //////////////////////////////////////////////////////////////////
 // protocol_post uses this structure to store outgoing messages
 // until they can be sent.
@@ -329,10 +339,11 @@ struct tag_PARAMSTAT {
 //
 /////////////////////////////////////////////////////////////////
 
-#define PROTOCOL_CMD_READVAL 'R'
-#define PROTOCOL_CMD_READVALRESPONSE 'r'
-#define PROTOCOL_CMD_WRITEVAL 'W'
-#define PROTOCOL_CMD_WRITEVALRESPONSE 'w'
+#define PROTOCOL_CMD_READVAL          'R'  // Request reading a value and request sending it back
+#define PROTOCOL_CMD_READVALRESPONSE  'r'  // Sending back the read value. Similar to writing, but does not request confirmation
+#define PROTOCOL_CMD_WRITEVAL         'W'  // Writing a value and requesting confirmaion
+#define PROTOCOL_CMD_WRITEVALRESPONSE 'w'  // Confirmation for written value
+#define PROTOCOL_CMD_SILENTREAD       's'  // Reads a value and triggers callback functions but does not actually send back anything
 
 
 ///////////////////////////////////////////////////
