@@ -37,9 +37,6 @@ void noReset(void) {};
 void (*protocol_SystemReset)() = noReset;
 
 
-
-static int initialised_functions = 0;
-
 //////////////////////////////////////////////
 // variables you want to read/write here. Only common used ones, specific ones below.
 
@@ -430,7 +427,8 @@ int setParams(PROTOCOL_STAT *s, PARAMSTAT params[], int len) {
 int setParamsCopy(PROTOCOL_STAT *s, const PARAMSTAT params[], int len) {
     int error = 0;
     for (int i = 0; i < len; i++) {
-        PARAMSTAT *newParam = (PARAMSTAT *) malloc( sizeof(PARAMSTAT) );
+        PARAMSTAT *newParam;
+        newParam = (PARAMSTAT *) malloc( sizeof(PARAMSTAT) );
         memcpy(newParam, &params[i], sizeof(PARAMSTAT));
         error += setParam(s, newParam);
     }
@@ -496,9 +494,9 @@ int protocol_init(PROTOCOL_STAT *s) {
     s->send_serial_data_wait = nosend;
 
     int error = 0;
-    if (!initialised_functions) {
+    if (!s->initialised_functions) {
         error += setParamsCopy(s, initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
-        initialised_functions = 1;
+        s->initialised_functions = 1;
         // yes, may be called multiple times, but checks internally.
         ascii_init(s);
     }

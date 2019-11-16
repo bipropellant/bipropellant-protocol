@@ -287,6 +287,7 @@ typedef struct tag_PROTOCOL_STAT {
     PROTOCOLSTATE noack;
     PARAMSTAT *params[256];
     ASCIISTATE ascii;
+    int initialised_functions;
 } PROTOCOL_STAT;
 
 
