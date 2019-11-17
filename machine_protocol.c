@@ -376,19 +376,42 @@ void protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), 
 
     // Enforce validity of SOM.
     if(msg->SOM == PROTOCOL_SOM_ACK || msg->SOM == PROTOCOL_SOM_NOACK) {
-    unsigned char CS = 0;
-    int i;
-    CS -= msg->CI;
-    CS -= msg->len;
+        unsigned char CS = 0;
+        int i;
+        CS -= msg->CI;
+        CS -= msg->len;
 
-    for (i = 0; i < msg->len; i++){
-        CS -= msg->bytes[i];
+        for (i = 0; i < msg->len; i++){
+            CS -= msg->bytes[i];
+        }
+        msg->bytes[i] = CS;
+        send_serial_data((unsigned char *) msg, msg->len+4);
     }
-    msg->bytes[i] = CS;
-    send_serial_data((unsigned char *) msg, msg->len+4);
-}
 }
 
+int protocol_send_text(PROTOCOL_STAT *s, char *message, unsigned char som) {
+
+
+    if( (s->params[0x26]) && (strlen(message) <= s->params[0x26]->len ) ) {
+
+        PROTOCOL_MSG2 newMsg;
+        memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG2));
+        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) &(newMsg.bytes);
+
+        newMsg.SOM = som;
+        newMsg.len = sizeof(writevals->cmd) + sizeof(writevals->code) + strlen(message) + 1;  // +1 for Null character \0
+
+        writevals->cmd  = PROTOCOL_CMD_WRITEVAL;
+        writevals->code = 0x26;                    // 0x26 for text
+        strcpy( (char *) writevals->content, message);
+
+        protocol_post(s, &newMsg);
+
+        return strlen(message);
+
+    }
+    return -1; // failed
+}
 
 // called regularly from main.c
 // externed from protocol.h

@@ -133,9 +133,30 @@ void fn_defaultProcessingPreWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, uns
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+// Default function, wipes receive memory before writing (and readresponse is just a differenct type of writing)
+
+
+void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+    switch (cmd) {
+        case PROTOCOL_CMD_READVAL:
+        case PROTOCOL_CMD_SILENTREAD:
+            fn_defaultProcessing(s, param, cmd, msg);
+            break;
+
+        case PROTOCOL_CMD_READVALRESPONSE:
+        case PROTOCOL_CMD_WRITEVALRESPONSE:
+        case PROTOCOL_CMD_WRITEVAL:
+            // Do nothing
+            break;
+    }
+
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x00 version
 
-static int version = 1;
+static uint32_t version = 2;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -358,7 +379,7 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned ch
         }
     }
 
-    fn_defaultProcessing(s, param, cmd, msg);
+    fn_defaultProcessingReadOnly(s, param, cmd, msg);
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
@@ -379,23 +400,24 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned ch
 const static PARAMSTAT initialparams[] = {
     // Protocol Relevant Parameters
     { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions, 0,                         fn_paramstat_descriptions },
-    { 0x00, "version",                 NULL,  UI_LONG,  &version,           sizeof(int),                    fn_defaultProcessing },
+    { 0x00, "version",                 NULL,  UI_LONG,  &version,           sizeof(uint32_t),               fn_defaultProcessingReadOnly },
     { 0x22, "subscribe data",          NULL,  UI_NONE,  &contentbuf,        sizeof(PROTOCOL_SUBSCRIBEDATA), fn_SubscribeData },
     { 0x23, "protocol stats ack+noack",NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          fn_ProtocolcountDataSum },
     { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          fn_ProtocolcountDataAck },
     { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          fn_ProtocolcountDataNoack },
+    { 0x26, "text",                    NULL,  UI_NONE,  &contentbuf,        sizeof(contentbuf),             fn_defaultProcessing },
 
     // Sensor (Hoverboard mode)
-    { 0x01, "sensor data",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SENSOR_FRAME),          fn_defaultProcessing },
+    { 0x01, "sensor data",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SENSOR_FRAME),          fn_defaultProcessingReadOnly },
 
     // Control and Measurements
-    { 0x02, "hall data",               NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_HALL_DATA_STRUCT),      fn_defaultProcessing },
+    { 0x02, "hall data",               NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_HALL_DATA_STRUCT),      fn_defaultProcessingReadOnly },
     { 0x03, "speed control mm/s",      NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SPEED_DATA),            fn_defaultProcessingPreWriteClear },
     { 0x04, "hall position mm",        NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN),                  fn_defaultProcessingPreWriteClear },
     { 0x05, "position control increment mm",NULL,UI_NONE,&contentbuf,sizeof(PROTOCOL_POSN_INCR),             fn_defaultProcessingPreWriteClear },
     { 0x06, "position control mm",     NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN_DATA),             fn_defaultProcessingPreWriteClear },
     { 0x07, "hall position steps",     NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN),                  fn_defaultProcessingPreWriteClear },
-    { 0x08, "electrical measurements", NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_ELECTRICAL_PARAMS),     fn_defaultProcessing },
+    { 0x08, "electrical measurements", NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_ELECTRICAL_PARAMS),     fn_defaultProcessingReadOnly },
     { 0x09, "enable motors",           NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),                        fn_defaultProcessingPreWriteClear },
     { 0x0A, "disable poweroff timer",  NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t),                        fn_defaultProcessingPreWriteClear },
     { 0x0B, "enable console logs",     NULL,  UI_CHAR,  &contentbuf, sizeof(uint8_t ),                       fn_defaultProcessingPreWriteClear },
@@ -519,6 +541,8 @@ int protocol_init(PROTOCOL_STAT *s) {
     s->send_serial_data = nosend;
     s->send_serial_data_wait = nosend;
 
+
+    // Initialize params array
     int error = 0;
     if (!s->initialised_functions) {
         error += setParamsCopy(s, initialparams, sizeof(initialparams)/sizeof(initialparams[0]));
@@ -526,6 +550,26 @@ int protocol_init(PROTOCOL_STAT *s) {
         // yes, may be called multiple times, but checks internally.
         ascii_init(s);
     }
+
+
+    // Send version as "welcome" message over protocol.
+    // First try will fail, as send_serial_data is set to dummy function. But the next try should
+    // succeed as it is expected to set send_serial_data to something useful before protocol_tick is called.
+    PROTOCOL_MSG2 newMsg;
+    memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG2));
+    PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) &(newMsg.bytes);
+    uint32_t *writeint = (uint32_t *) writevals->content;
+
+    newMsg.SOM = PROTOCOL_SOM_ACK;                  // Retry to send when no ACK was received
+    newMsg.len = sizeof(writevals->cmd) + sizeof(writevals->code) + sizeof(uint32_t);
+
+    writevals->cmd  = PROTOCOL_CMD_READVALRESPONSE; // Pretend someone requested this.
+    writevals->code = 0x00;                         // 0x00 for version
+    *writeint       = version;
+
+    protocol_post(s, &newMsg);
+
+
 
     return error;
 }

@@ -390,7 +390,7 @@ extern int setParamHandler( PROTOCOL_STAT *s, unsigned char code, PARAMSTAT_FN c
 /////////////////////////////////////////////////////////////////
 // Default Param Handler, replies to Messages
 void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg );
-
+void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg );
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
 void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
@@ -403,6 +403,9 @@ void protocol_tick(PROTOCOL_STAT *s);
 /////////////////////////////////////////////////////////////////
 // initialize protocol
 int protocol_init(PROTOCOL_STAT *s);
+/////////////////////////////////////////////////////////////////
+// Send Text over protocol
+int protocol_send_text(PROTOCOL_STAT *s, char *message, unsigned char som);
 /////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////
