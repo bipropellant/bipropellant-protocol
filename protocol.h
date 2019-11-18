@@ -186,8 +186,8 @@ typedef struct tag_PROTOCOL_POSN_INCR {
 #pragma pack(push, 1)
 typedef struct tag_PROTOCOL_SUBSCRIBEDATA {
     char code;                       // code in protocol to refer to this
-    unsigned int period;             // how often should the information be sent?
-    int count;                       // how many messages shall be sent? -1 for infinity
+    uint32_t period;             // how often should the information be sent?
+    int32_t count;                       // how many messages shall be sent? -1 for infinity
     char som;                        // which SOM shall be used? with or without ACK
     uint32_t next_send_time;    // last time a message requiring an ACK was sent
 

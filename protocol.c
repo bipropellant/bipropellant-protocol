@@ -45,53 +45,58 @@ unsigned char contentbuf[sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content )];
 
 void protocol_process_ReadValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
     if(msg) {
-    PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
+        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
-    unsigned char *src = s->params[writevals->code]->ptr;
-    for (int j = 0; j < s->params[writevals->code]->len; j++){
-        writevals->content[j] = *(src++);
-    }
+        unsigned char *src = s->params[writevals->code]->ptr;
+        for (int j = 0; j < s->params[writevals->code]->len; j++){
+            writevals->content[j] = *(src++);
+        }
     }
 }
 
 void protocol_process_ReadAndSendValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
     if(msg) {
-        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
-
         protocol_process_ReadValue(s, msg);
 
-    msg->len = 1+1+s->params[writevals->code]->len;  // command + code + data len only
-    writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
-    // send back with 'read' command plus data like write.
-    protocol_post(s, msg);
-}
+        PROTOCOL_MSG2 newMsg;
+        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) newMsg.bytes;
+        memcpy(&newMsg, msg, sizeof(PROTOCOL_MSG2));
+
+        newMsg.len = 1+1+s->params[writevals->code]->len;  // command + code + data len only
+        writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
+        // send back with 'read' command plus data like write.
+        protocol_post(s, &newMsg);
+    }
 }
 
 void protocol_process_WriteValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
     if(msg) {
-    PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
+        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
-    unsigned char *dest = s->params[writevals->code]->ptr;
-    // ONLY copy what we have, else we're stuffing random data in.
-    // e.g. is setting posn, structure is 8 x 4 bytes,
-    // but we often only want to set the first 8
-    for (int j = 0; ((j < s->params[writevals->code]->len) && (j < (msg->len-2))); j++){
-        *(dest++) = writevals->content[j];
+        unsigned char *dest = s->params[writevals->code]->ptr;
+        // ONLY copy what we have, else we're stuffing random data in.
+        // e.g. is setting posn, structure is 8 x 4 bytes,
+        // but we often only want to set the first 8
+        for (int j = 0; ((j < s->params[writevals->code]->len) && (j < (msg->len-2))); j++){
+            *(dest++) = writevals->content[j];
+        }
     }
-}
 }
 
 void protocol_process_cmdWritevalAndRespond(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
     if(msg) {
-    PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
-    protocol_process_WriteValue(s, msg);
+        protocol_process_WriteValue(s, msg);
 
-    msg->len = 1+1+1; // cmd+code+'1' only
-    writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
-    writevals->content[0] = 1; // say we wrote it
-    // send back with 'write' command with no data.
-    protocol_post(s, msg);
+        PROTOCOL_MSG2 newMsg;
+        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) newMsg.bytes;
+        memcpy(&newMsg, msg, sizeof(PROTOCOL_MSG2));
+
+        newMsg.len = 1+1+1; // cmd+code+'1' only
+        writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
+        writevals->content[0] = 1; // say we wrote it
+        // send back with 'write' command with no data.
+        protocol_post(s, &newMsg);
     }
 }
 
@@ -173,44 +178,44 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
         {
             if(msg) {
                 int len = msg->len-2;
-            PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
+                PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
-            // Check if length of received data is plausible.
-            if(len != sizeof(PROTOCOL_SUBSCRIBEDATA)) {
-                break;
-            }
-
-            int subscriptions_len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
-            int index = 0;
-
-            // Check if subscription already exists for this code
-            for (index = 0; index < subscriptions_len; index++) {
-                if(s->subscriptions[index].code == ((PROTOCOL_SUBSCRIBEDATA*) writevals->content)->code) {
+                // Check if length of received data is plausible.
+                if(len != sizeof(PROTOCOL_SUBSCRIBEDATA)) {
                     break;
                 }
-            }
 
-            // If code was not found, look for vacant subscription slot
-            if(index == subscriptions_len) {
+                int subscriptions_len = sizeof(s->subscriptions)/sizeof(s->subscriptions[0]);
+                int index = 0;
+
+                // Check if subscription already exists for this code
                 for (index = 0; index < subscriptions_len; index++) {
-                    // NOTE: if you set a count of 0, or the count runs out, then
-                    // the subscription will be overwritten later -
-                    // i.e. you effectively delete it....
-                    if( s->subscriptions[index].code == 0 || s->subscriptions[index].count == 0 ) {
+                    if(s->subscriptions[index].code == ((PROTOCOL_SUBSCRIBEDATA*) writevals->content)->code) {
                         break;
                     }
                 }
-            }
 
-            // Fill in new subscription when possible; Plausibility check for period
-            if(index < subscriptions_len && ((PROTOCOL_SUBSCRIBEDATA*) writevals->content)->period >= 10) {
-                s->subscriptions[index] = *((PROTOCOL_SUBSCRIBEDATA*) writevals->content);
-                //char tmp[100];
-                //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, ((SUBSCRIBEDATA*) (param->ptr))->code, ((SUBSCRIBEDATA*) (param->ptr))->period, ((SUBSCRIBEDATA*) (param->ptr))->count, ((SUBSCRIBEDATA*) (param->ptr))->som);
-                //consoleLog(tmp);
-            } else {
-                // TODO. Inform sender??
-                // consoleLog("no subscriptions available\n");
+                // If code was not found, look for vacant subscription slot
+                if(index == subscriptions_len) {
+                    for (index = 0; index < subscriptions_len; index++) {
+                        // NOTE: if you set a count of 0, or the count runs out, then
+                        // the subscription will be overwritten later -
+                        // i.e. you effectively delete it....
+                        if( s->subscriptions[index].code == 0 || s->subscriptions[index].count == 0 ) {
+                            break;
+                        }
+                    }
+                }
+
+                // Fill in new subscription when possible; Plausibility check for period
+                if(index < subscriptions_len && ((PROTOCOL_SUBSCRIBEDATA*) writevals->content)->period >= 10) {
+                    s->subscriptions[index] = *((PROTOCOL_SUBSCRIBEDATA*) writevals->content);
+                    //char tmp[100];
+                    //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, ((SUBSCRIBEDATA*) (param->ptr))->code, ((SUBSCRIBEDATA*) (param->ptr))->period, ((SUBSCRIBEDATA*) (param->ptr))->count, ((SUBSCRIBEDATA*) (param->ptr))->som);
+                    //consoleLog(tmp);
+                } else {
+                    // TODO. Inform sender??
+                    // consoleLog("no subscriptions available\n");
                 }
             }
             break;
