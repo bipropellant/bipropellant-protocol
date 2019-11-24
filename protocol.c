@@ -163,6 +163,24 @@ void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned
 
 static uint32_t version = 2;
 
+////////////////////////////////////////////////////////////////////////////////////////////
+// Variable & Functions for 0x27 Ping
+// Sends back the received Message as a readresponse. (Sender can send a timestamp to measure latency)
+
+void fn_ping ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+
+    switch (cmd) {
+
+        case PROTOCOL_CMD_WRITEVAL:
+        {
+            if(msg) {
+                PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
+                writevals->cmd = PROTOCOL_CMD_READVALRESPONSE;
+                protocol_post(s, msg);
+            }
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x22 SubscribeData
@@ -411,6 +429,7 @@ const static PARAMSTAT initialparams[] = {
     { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          fn_ProtocolcountDataAck },
     { 0x25, "protocol stats noack",    NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          fn_ProtocolcountDataNoack },
     { 0x26, "text",                    NULL,  UI_NONE,  &contentbuf,        sizeof(contentbuf),             fn_defaultProcessing },
+    { 0x27, "ping",                    NULL,  UI_NONE,  &contentbuf,        sizeof(contentbuf),             fn_ping },
 
     // Sensor (Hoverboard mode)
     { 0x01, "sensor data",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SENSOR_FRAME),          fn_defaultProcessingReadOnly },
