@@ -44,7 +44,7 @@ void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
 
 /////////////////////////////////////////////////////////////////
 // processes machine protocol messages
-void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
+void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg);
 
 /////////////////////////////////////////////////////////////////
 // get buffer level

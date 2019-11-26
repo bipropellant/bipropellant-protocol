@@ -41,67 +41,61 @@ void (*protocol_SystemReset)() = noReset;
 // variables you want to read/write here. Only common used ones, specific ones below.
 
 // Default temporary storage for received values
-unsigned char contentbuf[sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content )];
+unsigned char contentbuf[sizeof( ((PROTOCOL_MSG3full *)0)->content )];
 
-void protocol_process_ReadValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
+void protocol_process_ReadValue(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg) {
     if(msg) {
-        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
-
-        unsigned char *src = s->params[writevals->code]->ptr;
-        for (int j = 0; j < s->params[writevals->code]->len; j++){
-            writevals->content[j] = *(src++);
+        unsigned char *src = s->params[msg->code]->ptr;
+        for (int j = 0; j < s->params[msg->code]->len; j++){
+            msg->content[j] = *(src++);
         }
     }
 }
 
-void protocol_process_ReadAndSendValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
+void protocol_process_ReadAndSendValue(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg) {
     if(msg) {
         protocol_process_ReadValue(s, msg);
 
-        PROTOCOL_MSG2 newMsg;
-        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) newMsg.bytes;
-        memcpy(&newMsg, msg, sizeof(PROTOCOL_MSG2));
+        PROTOCOL_MSG3 newMsg;
+        memcpy(&newMsg, msg, sizeof(PROTOCOL_MSG3full));
 
-        newMsg.len = 1+1+s->params[writevals->code]->len;  // command + code + data len only
-        writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
+        newMsg.len = 1+1+s->params[msg->code]->len;  // command + code + data len only
+        newMsg.cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
         // send back with 'read' command plus data like write.
         protocol_post(s, &newMsg);
     }
 }
 
-void protocol_process_WriteValue(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
+void protocol_process_WriteValue(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg) {
     if(msg) {
-        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
-
-        unsigned char *dest = s->params[writevals->code]->ptr;
+        unsigned char *dest = s->params[msg->code]->ptr;
         // ONLY copy what we have, else we're stuffing random data in.
         // e.g. is setting posn, structure is 8 x 4 bytes,
         // but we often only want to set the first 8
-        for (int j = 0; ((j < s->params[writevals->code]->len) && (j < (msg->len-2))); j++){
-            *(dest++) = writevals->content[j];
+        for (int j = 0; ((j < s->params[msg->code]->len) && (j < (msg->lenPayload))); j++){
+            *(dest++) = msg->content[j];
         }
     }
 }
 
-void protocol_process_cmdWritevalAndRespond(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
+void protocol_process_cmdWritevalAndRespond(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg) {
     if(msg) {
 
         protocol_process_WriteValue(s, msg);
 
-        PROTOCOL_MSG2 newMsg;
-        PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) newMsg.bytes;
-        memcpy(&newMsg, msg, sizeof(PROTOCOL_MSG2));
+        PROTOCOL_MSG3full newMsg;
+        memcpy(&newMsg, msg, sizeof(PROTOCOL_MSG3full));
 
-        newMsg.len = 1+1+1; // cmd+code+'1' only
-        writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
-        writevals->content[0] = 1; // say we wrote it
+        newMsg.lenPayload = 1; // 1 only
+        newMsg.cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
+        newMsg.content[0] = 1; // say we wrote it
         // send back with 'write' command with no data.
         protocol_post(s, &newMsg);
     }
 }
 
 
-void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
             protocol_process_ReadAndSendValue(s, msg);
@@ -126,7 +120,7 @@ void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cm
 // Default function, wipes receive memory before writing (and readresponse is just a differenct type of writing)
 
 
-void fn_defaultProcessingPreWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_defaultProcessingPreWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
     switch (cmd) {
         case PROTOCOL_CMD_WRITEVAL:
         case PROTOCOL_CMD_READVALRESPONSE:
@@ -142,7 +136,7 @@ void fn_defaultProcessingPreWriteClear ( PROTOCOL_STAT *s, PARAMSTAT *param, uns
 // Default function, wipes receive memory before writing (and readresponse is just a differenct type of writing)
 
 
-void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
         case PROTOCOL_CMD_SILENTREAD:
@@ -167,7 +161,7 @@ static uint32_t version = 2;
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Variable & Functions for 0x22 SubscribeData
 
-void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
 
     fn_defaultProcessingPreWriteClear(s, param, cmd, msg); // Wipes memory before write (and readresponse is just a differenct type of writing)
 
@@ -177,11 +171,9 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
         case PROTOCOL_CMD_READVALRESPONSE:
         {
             if(msg) {
-                int len = msg->len-2;
-                PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
 
                 // Check if length of received data is plausible.
-                if(len != sizeof(PROTOCOL_SUBSCRIBEDATA)) {
+                if(msg->lenPayload != sizeof(PROTOCOL_SUBSCRIBEDATA)) {
                     break;
                 }
 
@@ -190,7 +182,7 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
 
                 // Check if subscription already exists for this code
                 for (index = 0; index < subscriptions_len; index++) {
-                    if(s->subscriptions[index].code == ((PROTOCOL_SUBSCRIBEDATA*) writevals->content)->code) {
+                    if(s->subscriptions[index].code == ((PROTOCOL_SUBSCRIBEDATA*) msg->content)->code) {
                         break;
                     }
                 }
@@ -208,8 +200,8 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
                 }
 
                 // Fill in new subscription when possible; Plausibility check for period
-                if(index < subscriptions_len && ((PROTOCOL_SUBSCRIBEDATA*) writevals->content)->period >= 10) {
-                    s->subscriptions[index] = *((PROTOCOL_SUBSCRIBEDATA*) writevals->content);
+                if(index < subscriptions_len && ((PROTOCOL_SUBSCRIBEDATA*) msg->content)->period >= 10) {
+                    s->subscriptions[index] = *((PROTOCOL_SUBSCRIBEDATA*) msg->content);
                     //char tmp[100];
                     //sprintf(tmp, "subscription added at %d for 0x%x, period %d, count %d, som %d\n", index, ((SUBSCRIBEDATA*) (param->ptr))->code, ((SUBSCRIBEDATA*) (param->ptr))->period, ((SUBSCRIBEDATA*) (param->ptr))->count, ((SUBSCRIBEDATA*) (param->ptr))->som);
                     //consoleLog(tmp);
@@ -228,7 +220,7 @@ void fn_SubscribeData ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, P
 
 PROTOCOLCOUNT ProtocolcountData =  { .rx = 0 };
 
-void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
@@ -256,7 +248,7 @@ void fn_ProtocolcountDataSum ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char
     }
 }
 
-void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
@@ -276,7 +268,7 @@ void fn_ProtocolcountDataAck ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char
 
 }
 
-void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_ProtocolcountDataNoack ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
 
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
@@ -318,67 +310,64 @@ typedef struct tag_description {
 } DESCRIPTION;
 
 
-void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg ) {
+void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg ) {
     switch (cmd) {
         case PROTOCOL_CMD_READVAL:
         case PROTOCOL_CMD_SILENTREAD:
         {
             if(msg) {
-            int len = msg->len-2;
-            PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
-
-            // content[0] is the first entry to read.
-            // content[1] is max count of entries to read
-            // we prepare a buffer here, an MODIFY the paramstat length to tell it how much to send! (evil!?).
-            int first = 0;
-            int count = 100;
-            if (len > 0) {
-                first = writevals->content[0];
-            }
-            if (len > 1) {
-                count = writevals->content[1];
-            }
-
-            if (first >= (sizeof(s->params)/sizeof(s->params[0]))) {
-                s->params[0]->len = 0;
-                return;
-            }
-            if (first + count >= (sizeof(s->params)/sizeof(s->params[0]))){
-                count = (sizeof(s->params)/sizeof(s->params[0])) - first;
-            }
-
-            // now loop over requested entries until no more will fit in buffer,
-            // informing on start and count done.
-            int actual_count = 0;
-            int len_out = 0;
-            char *p = paramstat_descriptions.descriptions;
-            for (int i = first; i < first+count; i++){
-                if(s->params[i] != NULL) {
-                    int desc_len = 0;
-                    if (s->params[i]->description) {
-                        desc_len = strlen(s->params[i]->description);
-                    }
-                    DESCRIPTION *d = (DESCRIPTION *)p;
-                    if (len_out+sizeof(*d)-sizeof(d->description)+desc_len+1 > sizeof(paramstat_descriptions.descriptions)){
-                        break;
-                    }
-                    d->len = sizeof(*d)-sizeof(d->description)+desc_len+1;
-                    d->code = s->params[i]->code;
-                    d->var_len = s->params[i]->len;
-                    d->var_type = s->params[i]->ui_type;
-                    if (desc_len) {
-                        strcpy(d->description, s->params[i]->description);
-                    } else {
-                        d->description[0] = 0;
-                    }
-                    p += d->len;
-                    len_out = p - paramstat_descriptions.descriptions;
-                    actual_count++;
+                // content[0] is the first entry to read.
+                // content[1] is max count of entries to read
+                // we prepare a buffer here, an MODIFY the paramstat length to tell it how much to send! (evil!?).
+                int first = 0;
+                int count = 100;
+                if (msg->lenPayload > 0) {
+                    first = msg->content[0];
                 }
-            }
-            paramstat_descriptions.first = first;
-            paramstat_descriptions.count_read = actual_count;
-            param->len = sizeof(DESCRIPTIONS) - sizeof(paramstat_descriptions.descriptions) + len_out;
+                if (msg->lenPayload > 1) {
+                    count = msg->content[1];
+                }
+
+                if (first >= (sizeof(s->params)/sizeof(s->params[0]))) {
+                    s->params[0]->len = 0;
+                    return;
+                }
+                if (first + count >= (sizeof(s->params)/sizeof(s->params[0]))){
+                    count = (sizeof(s->params)/sizeof(s->params[0])) - first;
+                }
+
+                // now loop over requested entries until no more will fit in buffer,
+                // informing on start and count done.
+                int actual_count = 0;
+                int len_out = 0;
+                char *p = paramstat_descriptions.descriptions;
+                for (int i = first; i < first+count; i++){
+                    if(s->params[i] != NULL) {
+                        int desc_len = 0;
+                        if (s->params[i]->description) {
+                            desc_len = strlen(s->params[i]->description);
+                        }
+                        DESCRIPTION *d = (DESCRIPTION *)p;
+                        if (len_out+sizeof(*d)-sizeof(d->description)+desc_len+1 > sizeof(paramstat_descriptions.descriptions)){
+                            break;
+                        }
+                        d->len = sizeof(*d)-sizeof(d->description)+desc_len+1;
+                        d->code = s->params[i]->code;
+                        d->var_len = s->params[i]->len;
+                        d->var_type = s->params[i]->ui_type;
+                        if (desc_len) {
+                            strcpy(d->description, s->params[i]->description);
+                        } else {
+                            d->description[0] = 0;
+                        }
+                        p += d->len;
+                        len_out = p - paramstat_descriptions.descriptions;
+                        actual_count++;
+                    }
+                }
+                paramstat_descriptions.first = first;
+                paramstat_descriptions.count_read = actual_count;
+                param->len = sizeof(DESCRIPTIONS) - sizeof(paramstat_descriptions.descriptions) + len_out;
             }
             break;
         }
@@ -403,9 +392,11 @@ void fn_paramstat_descriptions ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned ch
 // NOTE: Don't start uistr with 'a'
 
 const static PARAMSTAT initialparams[] = {
+    // 0x00 is reserved, can not be used.
+
     // Protocol Relevant Parameters
     { 0xFF, "descriptions",            NULL,  UI_NONE,  &paramstat_descriptions, 0,                         fn_paramstat_descriptions },
-    { 0x00, "version",                 NULL,  UI_LONG,  &version,           sizeof(uint32_t),               fn_defaultProcessingReadOnly },
+    { 0xFE, "version",                 NULL,  UI_LONG,  &version,           sizeof(uint32_t),               fn_defaultProcessingReadOnly },
     { 0x22, "subscribe data",          NULL,  UI_NONE,  &contentbuf,        sizeof(PROTOCOL_SUBSCRIBEDATA), fn_SubscribeData },
     { 0x23, "protocol stats ack+noack",NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          fn_ProtocolcountDataSum },
     { 0x24, "protocol stats ack",      NULL,  UI_NONE,  &ProtocolcountData, sizeof(PROTOCOLCOUNT),          fn_ProtocolcountDataAck },
@@ -455,7 +446,7 @@ int setParam(PROTOCOL_STAT *s, PARAMSTAT *param) {
     if(param == NULL) return 1;   // Failure, got NULL pointer
 
     // Check if len can actually be received
-    if( param->len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
+    if( param->len > sizeof( ((PROTOCOL_MSG3full *)0)->content ) ) {
         return 1;                 // Too long, Failure
     }
 
@@ -493,7 +484,7 @@ int setParamsCopy(PROTOCOL_STAT *s, const PARAMSTAT params[], int len) {
 int setParamVariable(PROTOCOL_STAT *s, unsigned char code, char ui_type, void *ptr, int len) {
 
     // Check if len can actually be received
-    if( len > sizeof( ((PROTOCOL_BYTES_WRITEVALS *)0)->content ) ) {
+    if( len > sizeof( ((PROTOCOL_MSG3full *)0)->content ) ) {
         return 1;                           // Too long, Failure
     }
 
@@ -560,21 +551,19 @@ int protocol_init(PROTOCOL_STAT *s) {
     // Send version as "welcome" message over protocol.
     // First try will fail, as send_serial_data is set to dummy function. But the next try should
     // succeed as it is expected to set send_serial_data to something useful before protocol_tick is called.
-    PROTOCOL_MSG2 newMsg;
-    memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG2));
-    PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) &(newMsg.bytes);
-    uint32_t *writeint = (uint32_t *) writevals->content;
+    PROTOCOL_MSG3full newMsg;
+    memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG3full));
+
+    uint32_t *writeint = (uint32_t *) newMsg.content;
 
     newMsg.SOM = PROTOCOL_SOM_ACK;                  // Retry to send when no ACK was received
-    newMsg.len = sizeof(writevals->cmd) + sizeof(writevals->code) + sizeof(uint32_t);
+    newMsg.lenPayload = sizeof(uint32_t);
 
-    writevals->cmd  = PROTOCOL_CMD_READVALRESPONSE; // Pretend someone requested this.
-    writevals->code = 0x00;                         // 0x00 for version
-    *writeint       = version;
+    newMsg.cmd  = PROTOCOL_CMD_READVALRESPONSE; // Pretend someone requested this.
+    newMsg.code = 0xFE;                         // 0xFE for version
+    *writeint   = version;
 
     protocol_post(s, &newMsg);
-
-
 
     return error;
 }
@@ -582,14 +571,13 @@ int protocol_init(PROTOCOL_STAT *s) {
 /////////////////////////////////////////////
 // a complete machineprotocol message has been
 // received without error
-void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
-    PROTOCOL_BYTES_WRITEVALS *writevals = (PROTOCOL_BYTES_WRITEVALS *) msg->bytes;
+void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg) {
 
-    switch (writevals->cmd){
+    switch (msg->cmd){
         case PROTOCOL_CMD_SILENTREAD: {
-            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
-                if(s->params[writevals->code] != NULL) {
-                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], writevals->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
+            if( msg->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[msg->code] != NULL) {
+                    if (s->params[msg->code]->fn) s->params[msg->code]->fn( s, s->params[msg->code], msg->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
                     break;
                 }
             }
@@ -597,24 +585,24 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         }
 
         case PROTOCOL_CMD_READVAL: {
-            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
-                if(s->params[writevals->code] != NULL) {
-                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], writevals->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
+            if( msg->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[msg->code] != NULL) {
+                    if (s->params[msg->code]->fn) s->params[msg->code]->fn( s, s->params[msg->code], msg->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
                     break;
                 }
             }
             // parameter code not found
-            msg->len = 1+1; // cmd + code only
-            writevals->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
+            msg->lenPayload = 0;
+            msg->cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
             // send back with 'read' command plus data like write.
             protocol_post(s, msg);
             break;
         }
 
         case PROTOCOL_CMD_READVALRESPONSE: {
-            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
-                if(s->params[writevals->code] != NULL) {
-                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], writevals->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
+            if( msg->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[msg->code] != NULL) {
+                    if (s->params[msg->code]->fn) s->params[msg->code]->fn( s, s->params[msg->code], msg->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
                     break;
                 }
             }
@@ -628,8 +616,8 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         }
 
         case PROTOCOL_CMD_WRITEVALRESPONSE:{
-            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
-                if(s->params[writevals->code] != NULL) {
+            if( msg->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[msg->code] != NULL) {
                     break;
                 }
             }
@@ -643,16 +631,16 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
         }
 
         case PROTOCOL_CMD_WRITEVAL:{
-            if( writevals->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
-                if(s->params[writevals->code] != NULL) {
-                    if (s->params[writevals->code]->fn) s->params[writevals->code]->fn( s, s->params[writevals->code], writevals->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
+            if( msg->code < (sizeof(s->params)/sizeof(s->params[0])) ) {
+                if(s->params[msg->code] != NULL) {
+                    if (s->params[msg->code]->fn) s->params[msg->code]->fn( s, s->params[msg->code], msg->cmd, msg ); // NOTE: re-uses the msg object (part of stats)
                     break;
                 }
             }
             // parameter code not found
-            msg->len = 1+1+1; // cmd +code +'0' only
-            writevals->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
-            writevals->content[0] = 0; // say we did not write it
+            msg->lenPayload = 1; // '0' only
+            msg->cmd = PROTOCOL_CMD_WRITEVALRESPONSE; // mark as response
+            msg->content[0] = 0; // say we did not write it
             // send back with 'write' command plus data like write.
             protocol_post(s, msg);
             break;
@@ -666,7 +654,7 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
 
         case PROTOCOL_CMD_TEST:
             // just send it back!
-            writevals->cmd = PROTOCOL_CMD_TESTRESPONSE;
+            msg->cmd = PROTOCOL_CMD_TESTRESPONSE;
             // note: original 'bytes' sent back, so leave len as is
             protocol_post(s, msg);
             // post second immediately to test buffering
@@ -687,8 +675,8 @@ void protocol_process_message(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg) {
                 s->ack.counters.unknowncommands++;
             } else {
                 s->noack.counters.unknowncommands++;
-            }            writevals->cmd = PROTOCOL_CMD_UNKNOWN;
-            msg->len = 1;
+            }            msg->cmd = PROTOCOL_CMD_UNKNOWN;
+            msg->lenPayload = 0;
             protocol_post(s, msg);
         break;
     }

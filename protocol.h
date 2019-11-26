@@ -196,23 +196,28 @@ typedef struct tag_PROTOCOL_SUBSCRIBEDATA {
 
 
 #pragma pack(push, 1)
-typedef struct tag_PROTOCOL_MSG2 {
-    unsigned char SOM; // 0x02
-    unsigned char CI; // continuity counter
-    unsigned char len; // len is len of bytes to follow, NOT including CS
-    unsigned char bytes[255];  // variable number of data bytes, with a checksum on the end, cmd is first
-    // checksum such that sum of bytes CI to CS is zero
-} PROTOCOL_MSG2;
+typedef struct tag_PROTOCOL_MSG3 {
+    unsigned char SOM;          // 0x00
+    unsigned char cmd;          // first bit encodes if a ACK is necessary. Code must never be SOM.
+    unsigned char CI;           // continuity counter (Value from 1 to 255)
+    unsigned char len;          // len is length of COBS/R encoded message part including CS so it can never be 0x00. Does include optional COBS/R stuffing byte.
+    unsigned char bytes[255];   // COBS/R encoded Part of the Message
+                                // COBS/R Stuffing byte, only needed in some cases.
+} PROTOCOL_MSG3;
 #pragma pack(pop)
 
 
-// content of 'bytes' above, for single byte commands
 #pragma pack(push, 1)
-typedef struct tag_PROTOCOL_BYTES_WRITEVALS {
-    unsigned char cmd; // 'W'
-    unsigned char code; // code of value to write
-    unsigned char content[sizeof( ((PROTOCOL_MSG2 *)0)->bytes ) - sizeof(unsigned char) - sizeof(unsigned char)]; // cmd and code are part of bytes and need to be substracted
-} PROTOCOL_BYTES_WRITEVALS;
+typedef struct tag_PROTOCOL_MSG3full {
+    unsigned char SOM;          // 0x00
+    unsigned char cmd;          // first bit encodes if a ACK is necessary. Code must never be SOM.
+    unsigned char CI;           // continuity counter (Value from 1 to 255)
+    unsigned char lenPayload;   // len is length of the payload. Changed during decoding, does not includ code, CS and COBS/R Stuffing byte
+    unsigned char code;         // optional - code of value to write
+    unsigned char content[sizeof( ((PROTOCOL_MSG3 *)0)->bytes ) - sizeof(unsigned char) - sizeof(unsigned char)];
+                                // CI and the optional COBS/R stuffing byte are part of bytes and need to be substracted
+                                // checksum such that sum of the complete decoded message is zero
+} PROTOCOL_MSG3full;
 #pragma pack(pop)
 
 
@@ -252,7 +257,7 @@ typedef struct tag_PROTOCOLCOUNT {
 
 
 typedef struct tag_PROTOCOLSTATE {
-    PROTOCOL_MSG2 curr_send_msg;             // transmit message storage
+    PROTOCOL_MSG3full curr_send_msg;             // transmit message storage
     char retries;                            // number of retries left to send message
     int lastTXCI;                            // CI of last sent message
     int lastRXCI;                            // CI of last received message in ACKed stream
@@ -276,12 +281,12 @@ typedef struct tag_PARAMSTAT PARAMSTAT;
 
 typedef struct tag_PROTOCOL_STAT {
     char allow_ascii;                     // If set to 0, ascii protocol is not used
-    uint32_t last_tick_time;         // last time the tick function was called
+    uint32_t last_tick_time;              // last time the tick function was called
     char state;                           // state used in protocol_byte to receive messages
-    uint32_t last_char_time;         // last time a character was received
+    uint32_t last_char_time;              // last time a character was received
     unsigned char CS;                     // temporary storage to calculate Checksum
     unsigned char count;                  // index pointing to last received byte
-    PROTOCOL_MSG2 curr_msg;               // received message storage
+    PROTOCOL_MSG3full curr_msg;           // received message storage
 
     char send_state;                      // message transmission state (ACK_TX_WAITING or IDLE)
 
@@ -302,7 +307,7 @@ typedef struct tag_PROTOCOL_STAT {
 
 
 // NOTE: content can be NULL if len == 0
-typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg );
+typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg );
 
 struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
@@ -334,6 +339,7 @@ struct tag_PARAMSTAT {
 // response to an unkonwn command - maybe payload
 #define PROTOCOL_CMD_UNKNOWN '?'
 
+#define PROTOCOL_SOM 0
 #define PROTOCOL_SOM_ACK 2
 #define PROTOCOL_SOM_NOACK 4
 //
@@ -389,14 +395,14 @@ extern int setParamVariable( PROTOCOL_STAT *s, unsigned char code, char ui_type,
 extern int setParamHandler( PROTOCOL_STAT *s, unsigned char code, PARAMSTAT_FN callback );
 /////////////////////////////////////////////////////////////////
 // Default Param Handler, replies to Messages
-void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg );
-void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG2 *msg );
+void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg );
+void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg );
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
 void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
 /////////////////////////////////////////////////////////////////
 // call this schedule a message. CI and Checksum are added
-int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
+int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg);
 /////////////////////////////////////////////////////////////////
 // call this regularly from main.c
 void protocol_tick(PROTOCOL_STAT *s);
