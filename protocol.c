@@ -547,6 +547,7 @@ PARAMSTAT_FN getParamHandler(PROTOCOL_STAT *s, unsigned char code) {
 // initialize protocol
 // called from main.c
 int nosend( unsigned char *data, int len ){ return 0; };
+
 int protocol_init(PROTOCOL_STAT *s) {
     memset(s, 0, sizeof(*s));
     s->timeout1 = 500;
@@ -554,7 +555,10 @@ int protocol_init(PROTOCOL_STAT *s) {
     s->allow_ascii = 1;
     s->send_serial_data = nosend;
     s->send_serial_data_wait = nosend;
-
+    s->ack.lastTXCI = 1;
+    s->ack.lastRXCI = 1;
+    s->noack.lastTXCI = 1;
+    s->noack.lastRXCI = 1;
 
     // Initialize params array
     int error = 0;
@@ -574,7 +578,7 @@ int protocol_init(PROTOCOL_STAT *s) {
 
     uint32_t *writeint = (uint32_t *) newMsg.content;
 
-    newMsg.SOM = PROTOCOL_SOM_ACK;                  // Retry to send when no ACK was received
+    newMsg.SOM = PROTOCOL_SOM_ACK;              // Retry to send when no ACK was received
     newMsg.lenPayload = sizeof(uint32_t);
 
     newMsg.cmd  = PROTOCOL_CMD_READVALRESPONSE; // Pretend someone requested this.

@@ -75,17 +75,13 @@ int protocol_cobsr_decode(PROTOCOL_MSG3 *msg) {
 }
 
 int protocol_cobsr_encode(PROTOCOL_MSG3 *msg) {
+    // TODO: Check wether cobsr_encode can be rewritten to remove the need of separating source and destination
+    // also check if decode function has the same problem
+    PROTOCOL_MSG3 newMsg;
 
-    PROTOCOL_MSG3full *msgfull = (PROTOCOL_MSG3full *) msg;
-    size_t len;
+    cobsr_encode_result result = cobsr_encode(newMsg.bytes, sizeof(newMsg.bytes), msg->bytes, (size_t)msg->len);
 
-    if( msgfull->code ) {
-        len = msg->len + sizeof(msgfull->code) + sizeof(unsigned char); // Code and CS
-    } else {
-        len = msg->len + sizeof(unsigned char); // CS
-    }
-
-    cobsr_encode_result result = cobsr_encode(msg->bytes, sizeof(msg->bytes), msg->bytes, len);
+    memcpy(msg->bytes, newMsg.bytes, sizeof(newMsg.bytes));
 
     if(result.out_len >= 1) { // At least CS
         msg->len = (unsigned char) result.out_len;
@@ -135,22 +131,21 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
         switch(s->state) {
             case PROTOCOL_STATE_IDLE:
                 // Everything as planned, start new Message.
-                s->curr_msg.SOM = byte;
-                s->state == PROTOCOL_STATE_WAIT_CMD;
-                s->CS = 0;
-                return; // leave function.
+                break;
             case PROTOCOL_STATE_WAIT_CMD:
             case PROTOCOL_STATE_WAIT_CI:
                 // Not idle, no new CI received yet. Send NACK with incremented CI.
                 protocol_send_nack(s->send_serial_data, s->curr_msg.CI+1, s->curr_msg.SOM);
-                s->state = PROTOCOL_STATE_WAIT_CMD;
                 break;
             default:
                 // all other cases, send NACK for current CI. Even though we no it might be wrong..
                 protocol_send_nack(s->send_serial_data, s->curr_msg.CI, s->curr_msg.SOM);
-                s->state = PROTOCOL_STATE_WAIT_CMD;
                 break;
         }
+        s->curr_msg.SOM = byte;
+        s->CS = 0;
+        s->state == PROTOCOL_STATE_WAIT_CMD;
+        return; // leave function.
     }
 
     switch(s->state){
@@ -357,6 +352,9 @@ void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ),
         som = PROTOCOL_SOM_ACK;
     }
 
+    // Enforce valid CI
+    if(CI == 0) CI = 1;
+
     PROTOCOL_MSG3full newMsg;
     memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG3full));
 
@@ -388,7 +386,6 @@ void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), 
 //  0 sent immediately
 //  1 queued for later TX
 int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg){
-
 
     if(msg->SOM == PROTOCOL_SOM_ACK) {
         int txcount = mpTxQueued(&s->ack.TxBuffer);
@@ -430,7 +427,8 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg){
         } else if(msg->SOM == PROTOCOL_SOM_ACK && s->send_state == PROTOCOL_ACK_TX_IDLE) {
             // Idling (not waiting for ACK), send the Message directly
             memcpy(&s->ack.curr_send_msg, msg, 5 + msg->lenPayload); // SOM, cmd, CI, len, code + size of content
-            s->ack.curr_send_msg.CI = ++(s->ack.lastTXCI);
+            if( !(++(s->ack.lastTXCI)) ) s->ack.lastTXCI = 1;        // 0 is not a valid CI
+            s->ack.curr_send_msg.CI = s->ack.lastTXCI;
             s->ack.counters.tx++;
             protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
@@ -440,8 +438,9 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg){
 
         } else if (msg->SOM == PROTOCOL_SOM_NOACK) {
             // Send Message without ACK immediately
-            memcpy(&s->ack.curr_send_msg, msg, 5 + msg->lenPayload); // SOM, cmd, CI, len, code + size of content
-            s->noack.curr_send_msg.CI = ++(s->noack.lastTXCI);
+            memcpy(&s->noack.curr_send_msg, msg, 5 + msg->lenPayload); // SOM, cmd, CI, len, code + size of content
+            if( !(++(s->noack.lastTXCI)) ) s->noack.lastTXCI = 1;        // 0 is not a valid CI
+            s->noack.curr_send_msg.CI = s->noack.lastTXCI;
             s->noack.counters.tx++;
             protocol_send_raw(s->send_serial_data, &s->noack.curr_send_msg);
             return 0;
@@ -457,7 +456,8 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg){
             // Make sure we are not waiting for another ACK. Check if There is something in the buffer.
             mpGetTxMsg(&s->ack.TxBuffer, &s->ack.curr_send_msg.cmd);
             s->ack.curr_send_msg.SOM = PROTOCOL_SOM_ACK;
-            s->ack.curr_send_msg.CI = ++(s->ack.lastTXCI);
+            if( !(++(s->ack.lastTXCI)) ) s->ack.lastTXCI = 1;        // 0 is not a valid CI
+            s->ack.curr_send_msg.CI = s->ack.lastTXCI;
             s->ack.counters.tx++;
             protocol_send_raw(s->send_serial_data, &s->ack.curr_send_msg);
             s->send_state = PROTOCOL_ACK_TX_WAITING;
@@ -471,7 +471,8 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg){
             if (ismsg){
                 // Queue has message waiting
                 s->noack.curr_send_msg.SOM = PROTOCOL_SOM_NOACK;
-                s->noack.curr_send_msg.CI = ++(s->noack.lastTXCI);
+                if( !(++(s->noack.lastTXCI)) ) s->noack.lastTXCI = 1;        // 0 is not a valid CI
+                s->noack.curr_send_msg.CI = s->noack.lastTXCI;
                 s->noack.counters.tx++;
                 protocol_send_raw(s->send_serial_data, &s->noack.curr_send_msg);
                 return 0;
@@ -485,22 +486,28 @@ int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg){
 // private
 static int protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), PROTOCOL_MSG3full *msgFull){
 
+    PROTOCOL_MSG3 *msg = (PROTOCOL_MSG3 *) msgFull;
+
+
+    // Check if Messages is already encoded or not (Resends are already encoded.)
+    if( msgFull->SOM != PROTOCOL_SOM) {
     // Encode SOM
     if( protocol_SOM_encode(msgFull) != 0) return 1;
 
-    PROTOCOL_MSG3 *msg = (PROTOCOL_MSG3 *) msgFull;
+        // Calculate Checksum
+        unsigned char CS = -msgFull->SOM -msgFull->cmd -msgFull->CI - msgFull->lenPayload;
 
-    // Calculate Checksum
-    unsigned char CS = -msg->SOM -msg->cmd -msg->CI - msg->len;
+        if( msgFull->code != 0) msg->len += 1; // Include code.
+
     int i;
-    for (i = 0; i < msg->len; i++){
+        for (i = 0; i < msg->len; i++) {
         CS -= msg->bytes[i];
     }
     msg->bytes[i] = CS;
+        msg->len += 1; // Include CS.
 
     // Encode COBS/R
-    if(protocol_cobsr_encode(msg) != 0) {
-        return 1; // failed
+        if(protocol_cobsr_encode(msg) != 0) return 2; // failed
     }
 
     // Send

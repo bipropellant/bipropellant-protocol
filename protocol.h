@@ -257,11 +257,11 @@ typedef struct tag_PROTOCOLCOUNT {
 
 
 typedef struct tag_PROTOCOLSTATE {
-    PROTOCOL_MSG3full curr_send_msg;             // transmit message storage
+    PROTOCOL_MSG3full curr_send_msg;         // transmit message storage
     char retries;                            // number of retries left to send message
-    int lastTXCI;                            // CI of last sent message
-    int lastRXCI;                            // CI of last received message in ACKed stream
-    uint32_t last_send_time;            // last time a message requiring an ACK was sent
+    char lastTXCI;                           // CI of last sent message
+    char lastRXCI;                           // CI of last received message in ACKed stream
+    uint32_t last_send_time;                 // last time a message requiring an ACK was sent
 
     PROTOCOLCOUNT counters;                  // Statistical data of the protocol performance
     MACHINE_PROTOCOL_TX_BUFFER TxBuffer;     // Buffer for Messages to be sent
@@ -286,7 +286,7 @@ typedef struct tag_PROTOCOL_STAT {
     uint32_t last_char_time;              // last time a character was received
     unsigned char CS;                     // temporary storage to calculate Checksum
     unsigned char count;                  // index pointing to last received byte
-    PROTOCOL_MSG3full curr_msg;           // received message storage
+    PROTOCOL_MSG3 curr_msg;               // received message storage
 
     char send_state;                      // message transmission state (ACK_TX_WAITING or IDLE)
 
