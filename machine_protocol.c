@@ -63,9 +63,17 @@ static int protocol_send_raw(int (*send_serial_data)( unsigned char *data, int l
 
 
 int protocol_cobsr_decode(PROTOCOL_MSG3 *msg) {
-    cobsr_decode_result result = cobsr_decode(msg->bytes, sizeof(msg->bytes), msg->bytes, sizeof(msg->bytes));
+    // TODO: didnt test if memory can be shared between source and dest
+    PROTOCOL_MSG3 newMsg;
+
+    cobsr_decode_result result = cobsr_decode(newMsg.bytes, sizeof(newMsg.bytes), msg->bytes, msg->len);
+
+    memcpy(msg->bytes, newMsg.bytes, result.out_len);
+
     if(result.out_len == 1) { // Minimum CS
-        msg->len = 0; // No Code, no Payload
+        msg->len = 0;                  // No Code, no Payload
+        msg->bytes[1] = msg->bytes[0]; // Copy Checksum one byte further to create space for 'code'
+        msg->bytes[0] = 0;             // Set 'code' which was optional to 0
     } else if(result.out_len >= 2) { // CS and Code and optional payload
         msg->len = (unsigned char) result.out_len - sizeof(unsigned char) - sizeof(unsigned char); // Do not count CS and code
     } else {
@@ -81,7 +89,7 @@ int protocol_cobsr_encode(PROTOCOL_MSG3 *msg) {
 
     cobsr_encode_result result = cobsr_encode(newMsg.bytes, sizeof(newMsg.bytes), msg->bytes, (size_t)msg->len);
 
-    memcpy(msg->bytes, newMsg.bytes, sizeof(newMsg.bytes));
+    memcpy(msg->bytes, newMsg.bytes, result.out_len);
 
     if(result.out_len >= 1) { // At least CS
         msg->len = (unsigned char) result.out_len;
@@ -144,7 +152,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
         }
         s->curr_msg.SOM = byte;
         s->CS = 0;
-        s->state == PROTOCOL_STATE_WAIT_CMD;
+        s->state = PROTOCOL_STATE_WAIT_CMD;
         return; // leave function.
     }
 
@@ -195,7 +203,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
             // Verify Checksum
             s->CS = s->curr_msg.SOM + s->curr_msg.cmd + s->curr_msg.CI + s->curr_msg.len;
 
-            for (int i = 0; i < s->curr_msg.len; i++) {
+            for (int i = 0; i < s->curr_msg.len + 2; i++) { // Include 'code' and CS in calculation
                 s->CS += s->curr_msg.bytes[i];
             }
 
@@ -204,7 +212,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
 
             switch(s->curr_msg.SOM) {
             case PROTOCOL_SOM_ACK:
-                switch(s->curr_msg.bytes[0]) {
+                switch(s->curr_msg.cmd) {
                 case PROTOCOL_CMD_ACK:
                     if (s->send_state == PROTOCOL_ACK_TX_WAITING){
                         if (s->curr_msg.CI == s->ack.curr_send_msg.CI){
@@ -284,7 +292,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                 break;
 
             case PROTOCOL_SOM_NOACK:
-                switch(s->curr_msg.bytes[0]) {
+                switch(s->curr_msg.cmd) {
                 case PROTOCOL_CMD_ACK:
                     // We shouldn't get ACKs in the NoACK protocol..
                     s->noack.counters.unwantedacks++;
