@@ -286,7 +286,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                     protocol_send_ack(s->send_serial_data, s->curr_msg.CI);
                     s->ack.lastRXCI = s->curr_msg.CI;
                     s->ack.counters.rx++;
-                    protocol_process_message(s, &(s->curr_msg));
+                    protocol_process_message(s, (PROTOCOL_MSG3full *)&(s->curr_msg));
                     break;
                 }
                 break;
@@ -337,7 +337,7 @@ void protocol_byte(PROTOCOL_STAT *s, unsigned char byte ){
                     // process message
                     s->noack.lastRXCI = s->curr_msg.CI;
                     s->noack.counters.rx++;
-                    protocol_process_message(s, &(s->curr_msg));
+                    protocol_process_message(s, (PROTOCOL_MSG3full *)&(s->curr_msg));
                     break;
                 }
                 break;
@@ -500,7 +500,7 @@ static int protocol_send_raw(int (*send_serial_data)( unsigned char *data, int l
     // Check if Messages is already encoded or not (Resends are already encoded.)
     if( msgFull->SOM != PROTOCOL_SOM) {
     // Encode SOM
-    if( protocol_SOM_encode(msgFull) != 0) return 1;
+    if( protocol_SOM_encode(msg) != 0) return 1;
 
         // Calculate Checksum
         unsigned char CS = -msgFull->SOM -msgFull->cmd -msgFull->CI - msgFull->lenPayload;

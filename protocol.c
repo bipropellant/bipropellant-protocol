@@ -56,10 +56,10 @@ void protocol_process_ReadAndSendValue(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg)
     if(msg) {
         protocol_process_ReadValue(s, msg);
 
-        PROTOCOL_MSG3 newMsg;
+        PROTOCOL_MSG3full newMsg;
         memcpy(&newMsg, msg, sizeof(PROTOCOL_MSG3full));
 
-        newMsg.len = 1+1+s->params[msg->code]->len;  // command + code + data len only
+        newMsg.lenPayload = s->params[msg->code]->len;  // command + code + data len only
         newMsg.cmd = PROTOCOL_CMD_READVALRESPONSE; // mark as response
         // send back with 'read' command plus data like write.
         protocol_post(s, &newMsg);

@@ -36,8 +36,8 @@
  *                 operation and the length of the result (that was written to
  *                 dst_buf_ptr)
  */
-cobsr_encode_result cobsr_encode(void * dst_buf_ptr, size_t dst_buf_len,
-                                 const void * src_ptr, size_t src_len)
+cobsr_encode_result cobsr_encode(uint8_t * dst_buf_ptr, size_t dst_buf_len,
+                                 const uint8_t * src_ptr, size_t src_len)
 {
     cobsr_encode_result result              = { 0, COBSR_ENCODE_OK };
     const uint8_t *     src_read_ptr        = src_ptr;
@@ -157,8 +157,8 @@ cobsr_encode_result cobsr_encode(void * dst_buf_ptr, size_t dst_buf_len,
  *                 operation and the length of the result (that was written to
  *                 dst_buf_ptr)
  */
-cobsr_decode_result cobsr_decode(void * dst_buf_ptr, size_t dst_buf_len,
-                                 const void * src_ptr, size_t src_len)
+cobsr_decode_result cobsr_decode(uint8_t * dst_buf_ptr, size_t dst_buf_len,
+                                 const uint8_t * src_ptr, size_t src_len)
 {
     cobsr_decode_result result              = { 0, COBSR_DECODE_OK };
     const uint8_t *     src_read_ptr        = src_ptr;
