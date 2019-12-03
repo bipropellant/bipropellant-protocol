@@ -47,7 +47,7 @@ cobsr_encode_result cobsr_encode(uint8_t * dst_buf_ptr, size_t dst_buf_len,
     uint8_t *           dst_code_write_ptr  = dst_buf_ptr;
     uint8_t *           dst_write_ptr       = dst_code_write_ptr + 1;
     uint8_t             src_byte            = 0;
-    uint8_t             src_byte_next       = 0;
+    uint8_t             src_byte_next       = *src_read_ptr;
 
     uint8_t             search_len          = 1;
 
@@ -71,7 +71,7 @@ cobsr_encode_result cobsr_encode(uint8_t * dst_buf_ptr, size_t dst_buf_len,
                 break;
             }
             src_byte = src_byte_next;
-            if ( (src_read_ptr+1) >= src_end_ptr)
+            if ( (src_read_ptr+1) <= src_end_ptr)
             {
                 src_byte_next = *(src_read_ptr++ + 1);
             }
