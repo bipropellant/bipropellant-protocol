@@ -363,27 +363,14 @@ void protocol_send_nack(int (*send_serial_data)( unsigned char *data, int len ),
     // Enforce valid CI
     if(CI == 0) CI = 1;
 
-    PROTOCOL_MSG3full newMsg;
-    memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG3full));
-
-    newMsg.SOM = som;
-    newMsg.cmd = PROTOCOL_CMD_NACK;
-    newMsg.CI = CI;
-
-    protocol_send_raw(send_serial_data, &newMsg);
+    char tmp[] = { som, PROTOCOL_CMD_NACK, CI, 0, 0, 0, 0}; // Length 0, Memory for code, CS and stuffing byte
+    protocol_send_raw(send_serial_data, (PROTOCOL_MSG3full *)tmp);
 }
 
 // private
 void protocol_send_ack(int (*send_serial_data)( unsigned char *data, int len ), unsigned char CI){
-
-    PROTOCOL_MSG3full newMsg;
-    memset((void*)&newMsg,0x00,sizeof(PROTOCOL_MSG3full));
-
-    newMsg.SOM = PROTOCOL_SOM_ACK;
-    newMsg.cmd = PROTOCOL_CMD_ACK;
-    newMsg.CI = CI;
-
-    protocol_send_raw(send_serial_data, &newMsg);
+    char tmp[] = { PROTOCOL_SOM_ACK, PROTOCOL_CMD_ACK, CI, 0, 0, 0, 0}; // Length 0, Memory for code, CS and stuffing byte
+    protocol_send_raw(send_serial_data, (PROTOCOL_MSG3full *)tmp);
 }
 
 
