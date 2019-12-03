@@ -62,38 +62,38 @@ static int protocol_send(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg);
 static int protocol_send_raw(int (*send_serial_data)( unsigned char *data, int len ), PROTOCOL_MSG3full *msgFull);
 
 
-int protocol_cobsr_decode(PROTOCOL_MSG3 *msg) {
-    // TODO: didnt test if memory can be shared between source and dest
-    PROTOCOL_MSG3 newMsg;
+int protocol_cobsr_decode(PROTOCOL_MSG3 *msg)
+{
+    cobsr_decode_result result = cobsr_decode(msg->bytes, (size_t)msg->len, msg->bytes, (size_t)msg->len);
 
-    cobsr_decode_result result = cobsr_decode(newMsg.bytes, sizeof(newMsg.bytes), msg->bytes, msg->len);
-
-    memcpy(msg->bytes, newMsg.bytes, result.out_len);
-
-    if(result.out_len == 1) { // Minimum CS
+    if(result.out_len == 1) // Minimum CS
+    {
         msg->len = 0;                  // No Code, no Payload
         msg->bytes[1] = msg->bytes[0]; // Copy Checksum one byte further to create space for 'code'
         msg->bytes[0] = 0;             // Set 'code' which was optional to 0
-    } else if(result.out_len >= 2) { // CS and Code and optional payload
+    }
+    else if(result.out_len >= 2) // CS and Code and optional payload
+    {
         msg->len = (unsigned char) result.out_len - sizeof(unsigned char) - sizeof(unsigned char); // Do not count CS and code
-    } else {
+    }
+    else
+    {
         return -1; // Message too short, invalid.
     }
     return (int) result.status;
 }
 
-int protocol_cobsr_encode(PROTOCOL_MSG3 *msg) {
-    // TODO: Check wether cobsr_encode can be rewritten to remove the need of separating source and destination
-    // also check if decode function has the same problem
-    PROTOCOL_MSG3 newMsg;
+int protocol_cobsr_encode(PROTOCOL_MSG3 *msg)
+{
+    // COBSR encoding can result in a length which is 1 byte longer. Enough Memory has to be provided.
+    cobsr_encode_result result = cobsr_encode(msg->bytes, (size_t)msg->len + 1, msg->bytes, (size_t)msg->len);
 
-    cobsr_encode_result result = cobsr_encode(newMsg.bytes, sizeof(newMsg.bytes), msg->bytes, (size_t)msg->len);
-
-    memcpy(msg->bytes, newMsg.bytes, result.out_len);
-
-    if(result.out_len >= 1) { // At least CS
+    if(result.out_len >= 1) // At least CS
+    {
         msg->len = (unsigned char) result.out_len;
-    } else {
+    }
+    else
+    {
         return -1; // Message too short, invalid.
     }
     return (int) result.status;
