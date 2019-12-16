@@ -194,6 +194,28 @@ typedef struct tag_PROTOCOL_SUBSCRIBEDATA {
 } PROTOCOL_SUBSCRIBEDATA;
 #pragma pack(pop)
 
+#pragma pack(push, 4)
+typedef struct tag_PROTOCOL_ADC_SETTINGS{
+    float adc1_mult_neg;
+    float adc1_mult_pos;
+    uint16_t adc1_min;
+    uint16_t adc1_zero;
+    uint16_t adc1_max;
+    uint16_t adc2_min;
+    uint16_t adc2_zero;
+    uint16_t adc2_max;
+    float adc2_mult_neg;
+    float adc2_mult_pos;
+    uint16_t adc_off_start;
+    uint16_t adc_off_end;
+    float adc_off_filter;
+    float adc_relative_steer;
+    unsigned char adc_switch_channels;
+    unsigned char adc_reverse_steer;
+    unsigned char adc_squared_steer;
+    unsigned char adc_tankmode;
+} PROTOCOL_ADC_SETTINGS;
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 typedef struct tag_PROTOCOL_MSG3 {

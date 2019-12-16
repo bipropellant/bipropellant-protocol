@@ -453,6 +453,7 @@ const static PARAMSTAT initialparams[] = {
     { 0x87, "speed kd x 100",          "skd", UI_SHORT, &contentbuf, sizeof(short),                 fn_defaultProcessingPreWriteClear },
     { 0x88, "speed pwm incr lim",      "sl",  UI_SHORT, &contentbuf, sizeof(short),                 fn_defaultProcessingPreWriteClear }, // e.g. 20
     { 0x89, "max current limit x 100", "cl",  UI_SHORT, &contentbuf, sizeof(short),                 fn_defaultProcessingPreWriteClear }, // by default 1500 (=15 amps), limited by DC_CUR_LIMIT
+    { 0x90, "adc settings",            NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_ADC_SETTINGS), fn_defaultProcessingPreWriteClear },
     { 0xA0, "hoverboard enable",       "he",  UI_SHORT, &contentbuf, sizeof(short),                 fn_defaultProcessingPreWriteClear } // e.g. 20
 };
 
