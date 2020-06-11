@@ -186,23 +186,60 @@ typedef struct tag_PROTOCOL_POSN_INCR {
 #pragma pack(push, 1)
 typedef struct tag_PROTOCOL_SUBSCRIBEDATA {
     char code;                       // code in protocol to refer to this
-    unsigned int period;             // how often should the information be sent?
-    int count;                       // how many messages shall be sent? -1 for infinity
+    uint32_t period;             // how often should the information be sent?
+    int32_t count;                       // how many messages shall be sent? -1 for infinity
     char som;                        // which SOM shall be used? with or without ACK
     uint32_t next_send_time;    // last time a message requiring an ACK was sent
 
 } PROTOCOL_SUBSCRIBEDATA;
 #pragma pack(pop)
 
+#pragma pack(push, 4)
+typedef struct tag_PROTOCOL_ADC_SETTINGS{
+    float adc1_mult_neg;
+    float adc1_mult_pos;
+    uint16_t adc1_min;
+    uint16_t adc1_zero;
+    uint16_t adc1_max;
+    uint16_t adc2_min;
+    uint16_t adc2_zero;
+    uint16_t adc2_max;
+    float adc2_mult_neg;
+    float adc2_mult_pos;
+    uint16_t adc_off_start;
+    uint16_t adc_off_end;
+    float adc_off_filter;
+    float adc_relative_steer;
+    unsigned char adc_switch_channels;
+    unsigned char adc_reverse_steer;
+    unsigned char adc_squared_steer;
+    unsigned char adc_tankmode;
+} PROTOCOL_ADC_SETTINGS;
+#pragma pack(pop)
 
 #pragma pack(push, 1)
-typedef struct tag_PROTOCOL_MSG2 {
-    unsigned char SOM; // 0x02
-    unsigned char CI; // continuity counter
-    unsigned char len; // len is len of bytes to follow, NOT including CS
-    unsigned char bytes[255];  // variable number of data bytes, with a checksum on the end, cmd is first
-    // checksum such that sum of bytes CI to CS is zero
-} PROTOCOL_MSG2;
+typedef struct tag_PROTOCOL_MSG3 {
+    unsigned char SOM;          // 0x00
+    unsigned char cmd;          // first bit encodes if a ACK is necessary. Code must never be SOM.
+    unsigned char CI;           // continuity counter (Value from 1 to 255)
+    unsigned char len;          // len is length of COBS/R encoded message part including CS so it can never be 0x00. Does include optional COBS/R stuffing byte.
+    unsigned char bytes[255];   // COBS/R encoded Part of the Message
+                                // COBS/R Stuffing byte, only needed in some cases.
+} PROTOCOL_MSG3;
+#pragma pack(pop)
+
+
+#pragma pack(push, 1)
+typedef struct tag_PROTOCOL_MSG3full {
+    unsigned char SOM;          // 0x00
+    unsigned char cmd;          // first bit encodes if a ACK is necessary. Code must never be SOM.
+    unsigned char CI;           // continuity counter (Value from 1 to 255)
+    unsigned char lenPayload;   // len is length of the payload. Changed during decoding, does not includ code, CS and COBS/R Stuffing byte
+    unsigned char code;         // optional - code of value to write
+    unsigned char content[sizeof( ((PROTOCOL_MSG3 *)0)->bytes ) - sizeof(unsigned char) - sizeof(unsigned char)];
+                                // CI and the optional COBS/R stuffing byte are part of bytes and need to be substracted
+                                // checksum such that sum of the complete decoded message is zero
+} PROTOCOL_MSG3full;
 #pragma pack(pop)
 
 
@@ -242,26 +279,36 @@ typedef struct tag_PROTOCOLCOUNT {
 
 
 typedef struct tag_PROTOCOLSTATE {
-    PROTOCOL_MSG2 curr_send_msg;             // transmit message storage
+    PROTOCOL_MSG3full curr_send_msg;         // transmit message storage
     char retries;                            // number of retries left to send message
-    int lastTXCI;                            // CI of last sent message
-    int lastRXCI;                            // CI of last received message in ACKed stream
-    uint32_t last_send_time;            // last time a message requiring an ACK was sent
+    char lastTXCI;                           // CI of last sent message
+    char lastRXCI;                           // CI of last received message in ACKed stream
+    uint32_t last_send_time;                 // last time a message requiring an ACK was sent
 
     PROTOCOLCOUNT counters;                  // Statistical data of the protocol performance
     MACHINE_PROTOCOL_TX_BUFFER TxBuffer;     // Buffer for Messages to be sent
 } PROTOCOLSTATE;
 
+typedef struct tag_ASCII {
+    int enable_immediate;
+    int initialised;
+    char ascii_cmd[20];
+    char ascii_out[512];
+    int ascii_posn;
+    int8_t asciiProtocolUnlocked;
+} ASCIISTATE;
 
+struct tag_PARAMSTAT;
+typedef struct tag_PARAMSTAT PARAMSTAT;
 
 typedef struct tag_PROTOCOL_STAT {
     char allow_ascii;                     // If set to 0, ascii protocol is not used
-    uint32_t last_tick_time;         // last time the tick function was called
+    uint32_t last_tick_time;              // last time the tick function was called
     char state;                           // state used in protocol_byte to receive messages
-    uint32_t last_char_time;         // last time a character was received
+    uint32_t last_char_time;              // last time a character was received
     unsigned char CS;                     // temporary storage to calculate Checksum
     unsigned char count;                  // index pointing to last received byte
-    PROTOCOL_MSG2 curr_msg;               // received message storage
+    PROTOCOL_MSG3 curr_msg;               // received message storage
 
     char send_state;                      // message transmission state (ACK_TX_WAITING or IDLE)
 
@@ -275,13 +322,14 @@ typedef struct tag_PROTOCOL_STAT {
 
     PROTOCOLSTATE ack;
     PROTOCOLSTATE noack;
+    PARAMSTAT *params[256];
+    ASCIISTATE ascii;
+    int initialised_functions;
 } PROTOCOL_STAT;
 
-struct tag_PARAMSTAT;
-typedef struct tag_PARAMSTAT PARAMSTAT;
 
 // NOTE: content can be NULL if len == 0
-typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, uint8_t fn_type, unsigned char *content, int len );
+typedef void (*PARAMSTAT_FN)( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg );
 
 struct tag_PARAMSTAT {
     unsigned char code;     // code in protocol to refer to this
@@ -290,7 +338,6 @@ struct tag_PARAMSTAT {
     char ui_type;           // only UI_NONE or UI_SHORT
     void *ptr;              // pointer to value
     int len;                // length of value
-    char rw;                // PARAM_R or PARAM_RW
 
     PARAMSTAT_FN fn;        // function to handle events
 };
@@ -314,15 +361,17 @@ struct tag_PARAMSTAT {
 // response to an unkonwn command - maybe payload
 #define PROTOCOL_CMD_UNKNOWN '?'
 
+#define PROTOCOL_SOM 0
 #define PROTOCOL_SOM_ACK 2
 #define PROTOCOL_SOM_NOACK 4
 //
 /////////////////////////////////////////////////////////////////
 
-#define PROTOCOL_CMD_READVAL 'R'
-#define PROTOCOL_CMD_READVALRESPONSE 'r'
-#define PROTOCOL_CMD_WRITEVAL 'W'
-#define PROTOCOL_CMD_WRITEVALRESPONSE 'w'
+#define PROTOCOL_CMD_READVAL          'R'  // Request reading a value and request sending it back
+#define PROTOCOL_CMD_READVALRESPONSE  'r'  // Sending back the read value. Similar to writing, but does not request confirmation
+#define PROTOCOL_CMD_WRITEVAL         'W'  // Writing a value and requesting confirmaion
+#define PROTOCOL_CMD_WRITEVALRESPONSE 'w'  // Confirmation for written value
+#define PROTOCOL_CMD_SILENTREAD       's'  // Reads a value and triggers callback functions but does not actually send back anything
 
 
 ///////////////////////////////////////////////////
@@ -351,38 +400,32 @@ struct tag_PARAMSTAT {
 // #define UI_8CHAR 0x81
 // #define UI_POSN 0x03 - custom structure type.
 
-#define FN_TYPE_PRE_READ          1
-#define FN_TYPE_POST_READ         2
-#define FN_TYPE_PRE_WRITE         3
-#define FN_TYPE_POST_WRITE        4
-#define FN_TYPE_PRE_READRESPONSE  5
-#define FN_TYPE_POST_READRESPONSE 6
-
-
-
 
 //////////////////////////////////////////////////////
 // PUBLIC functions
 /////////////////////////////////////////////////////////
 extern void ascii_add_immediate( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char byte,  char *ascii_out), char* description );
 extern void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out), char *description );
-extern int ascii_init();
+extern int ascii_init(PROTOCOL_STAT *s);
 // Set entry in params
-extern int setParam(PARAMSTAT *param);
+extern int setParam( PROTOCOL_STAT *s, PARAMSTAT *param );
 /////////////////////////////////////////////////////////////////
 // Change variable at runtime
-extern int setParamVariable(unsigned char code, char ui_type, void *ptr, int len, char rw);
+extern int setParamVariable( PROTOCOL_STAT *s, unsigned char code, char ui_type, void *ptr, int len);
 /////////////////////////////////////////////////////////////////
 // Register new function handler at runtime
-extern int setParamHandler(unsigned char code, PARAMSTAT_FN callback);
+extern int setParamHandler( PROTOCOL_STAT *s, unsigned char code, PARAMSTAT_FN callback );
 /////////////////////////////////////////////////////////////////
-
+// Default Param Handler, replies to Messages
+void fn_defaultProcessing ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg );
+void fn_defaultProcessingReadOnly ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg );
+void fn_ping ( PROTOCOL_STAT *s, PARAMSTAT *param, unsigned char cmd, PROTOCOL_MSG3full *msg );
 /////////////////////////////////////////////////////////////////
 // call this with received bytes; normally from main loop
 void protocol_byte( PROTOCOL_STAT *s, unsigned char byte );
 /////////////////////////////////////////////////////////////////
 // call this schedule a message. CI and Checksum are added
-int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG2 *msg);
+int protocol_post(PROTOCOL_STAT *s, PROTOCOL_MSG3full *msg);
 /////////////////////////////////////////////////////////////////
 // call this regularly from main.c
 void protocol_tick(PROTOCOL_STAT *s);
@@ -390,17 +433,9 @@ void protocol_tick(PROTOCOL_STAT *s);
 // initialize protocol
 int protocol_init(PROTOCOL_STAT *s);
 /////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////
-// PUBLIC variables
-//////////////////////////////////////////////////////////
-
-// used to enable immediate mode (action on keypress)
-extern int enable_immediate;
-// used to display help
-extern PARAMSTAT *params[256];
-
-
+// Send Text over protocol
+int protocol_send_text(PROTOCOL_STAT *s, char *message, unsigned char som);
+/////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////
 // Function Pointers to system functions

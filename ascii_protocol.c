@@ -27,20 +27,6 @@
 // used in machine_protocol.c
 void ascii_byte(PROTOCOL_STAT *s, unsigned char byte );
 
-// used in main_ascii_init, external to this file`
-int enable_immediate = 0;
-
-static int initialised = 0;
-
-
-///////////////////////////////////////////////////
-// local variables for handling the 'human' protocol,
-// not really for external usage
-//
-static char ascii_cmd[20];
-static char ascii_out[512];
-static int ascii_posn = 0;
-static int8_t asciiProtocolUnlocked = 0;
 
 typedef struct ASCII_FUNCTION_tag {
     int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out);
@@ -68,7 +54,7 @@ static int line_unlock_ascii(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
                 break;
             }
             if(i == 10) {
-                asciiProtocolUnlocked = 1;
+                s->ascii.asciiProtocolUnlocked = 1;
                 sprintf(ascii_out, "ASCII input active. Type ? for help\r\n");
             }
         }
@@ -78,7 +64,7 @@ static int line_unlock_ascii(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
 
 static int line_lock_ascii(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
 //case 'L':
-    asciiProtocolUnlocked = 0;
+    s->ascii.asciiProtocolUnlocked = 0;
     sprintf(ascii_out, "ASCII protocol locked.\r\n");
     return 1;
 }
@@ -91,7 +77,7 @@ void ascii_add_immediate( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char
         letter |= 0x20;
         immediate_functions[letter].fn = fn;
         immediate_functions[letter].description = NULL;
-    }    
+    }
 }
 
 void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *line, char *ascii_out), char *description ) {
@@ -107,10 +93,10 @@ void ascii_add_line_fn( unsigned char letter, int (*fn)(PROTOCOL_STAT *s, char *
 void ascii_byte(PROTOCOL_STAT *s, unsigned char byte ){
     int skipchar = 0;
     // only if no characters buffered, process single keystorkes
-    if (enable_immediate && (ascii_posn == 0)){
+    if (s->ascii.enable_immediate && (s->ascii.ascii_posn == 0)){
         // returns 1 if char should not be kept in command buffer
         if (immediate_functions[byte].fn){
-            skipchar = immediate_functions[byte].fn(s, byte, ascii_out);
+            skipchar = immediate_functions[byte].fn(s, byte, s->ascii.ascii_out);
         } else {
             skipchar = 0;
         }
@@ -122,35 +108,35 @@ void ascii_byte(PROTOCOL_STAT *s, unsigned char byte ){
             s->send_serial_data((unsigned char *) &byte, 1);
 
 
-            if (ascii_posn > 0) {
-                ascii_cmd[ascii_posn] = 0;
-                sprintf(ascii_out, "- %s\r\n", ascii_cmd);
-                s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
-                ascii_out[0] = 0;
+            if (s->ascii.ascii_posn > 0) {
+                s->ascii.ascii_cmd[s->ascii.ascii_posn] = 0;
+                sprintf(s->ascii.ascii_out, "- %s\r\n", s->ascii.ascii_cmd);
+                s->send_serial_data((unsigned char *) s->ascii.ascii_out, strlen(s->ascii.ascii_out));
+                s->ascii.ascii_out[0] = 0;
 
-                if (!asciiProtocolUnlocked && (ascii_cmd[0] != 'u')) {
-                    sprintf(ascii_out, "Locked. Enter unlockASCII to enable ASCII input mode.\r\n>");
-                    s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
-                    ascii_cmd[0] = 0;
-                    ascii_posn = 0;
+                if (!s->ascii.asciiProtocolUnlocked && (s->ascii.ascii_cmd[0] != 'u')) {
+                    sprintf(s->ascii.ascii_out, "Locked. Enter unlockASCII to enable ASCII input mode.\r\n>");
+                    s->send_serial_data((unsigned char *) s->ascii.ascii_out, strlen(s->ascii.ascii_out));
+                    s->ascii.ascii_cmd[0] = 0;
+                    s->ascii.ascii_posn = 0;
                     return;
                 }
 
-                if (line_functions[(unsigned char)ascii_cmd[0]].fn){
-                    line_functions[(unsigned char)ascii_cmd[0]].fn(s, ascii_cmd, ascii_out);
+                if (line_functions[(unsigned char)s->ascii.ascii_cmd[0]].fn){
+                    line_functions[(unsigned char)s->ascii.ascii_cmd[0]].fn(s, s->ascii.ascii_cmd, s->ascii.ascii_out);
                 } else {
-                    sprintf(ascii_out, "No cmd %c - use ? for help\r\n", ascii_cmd[0]);
+                    sprintf(s->ascii.ascii_out, "No cmd %c - use ? for help\r\n", s->ascii.ascii_cmd[0]);
                 }
-                ascii_cmd[0] = 0;
-                ascii_posn = 0;
+                s->ascii.ascii_cmd[0] = 0;
+                s->ascii.ascii_posn = 0;
                 // send prompt
                 byte = '>';
             } else {
                 byte = '>';
             }
         } else {
-            if (ascii_posn < 20){
-                ascii_cmd[ascii_posn++] = byte;
+            if (s->ascii.ascii_posn < 20){
+                s->ascii.ascii_cmd[s->ascii.ascii_posn++] = byte;
             } else {
                 //byte = '#';
             }
@@ -160,9 +146,9 @@ void ascii_byte(PROTOCOL_STAT *s, unsigned char byte ){
         // send prompt after immediate
         byte = '>';
     }
-    if (ascii_out[0]){
-        s->send_serial_data((unsigned char *) ascii_out, strlen(ascii_out));
-        ascii_out[0] = 0;
+    if (s->ascii.ascii_out[0]){
+        s->send_serial_data((unsigned char *) s->ascii.ascii_out, strlen(s->ascii.ascii_out));
+        s->ascii.ascii_out[0] = 0;
     }
 
     // echo or prompt after processing
@@ -200,13 +186,13 @@ static int line_help(PROTOCOL_STAT *s, char *cmd, char *ascii_out) {
 
 
 
-int ascii_init() {
-    if (!initialised) {
+int ascii_init(PROTOCOL_STAT *s) {
+    if (!s->ascii.initialised) {
         ascii_add_line_fn( 'L', line_lock_ascii, "Lock ascii protocol");
         ascii_add_line_fn( 'u', line_unlock_ascii, "unlockASCII - unlock ASCII protocol");
 
         ascii_add_line_fn( '?', line_help, "display help");
-        initialised = 1;
+        s->ascii.initialised = 1;
         return 1;
     }
     return 0;
