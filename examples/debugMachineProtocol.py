@@ -3,7 +3,6 @@ from cobs import cobsr
 import argparse
 from enum import Enum
 from dataclasses import dataclass
-import numpy as np
 
 class ParserStates(Enum):
     idle    = 0
@@ -32,23 +31,34 @@ class ParseProtocol:
         self.expectedData = 0
 
     def compileMessage(self, ACK, cmd, CI, code, data):
+
         newMsg = bytearray()
-        newMsg += b'\x00'
-        newMsg.append(((ACK & 1) << 7) | ord(cmd))
-        newMsg.append(CI)
 
-        decoded = bytearray()
-        decoded.append(code)
-        decoded += data
+        newMsg += b'\x00'                            # Start with 0x00
+        newMsg.append(((ACK & 1) << 7) | ord(cmd))   # ACK or noACK encoded with cmd
+        newMsg.append(CI)                            # continuity indicator
+        newMsg.append(len(data))
+        newMsg.append(code)
+        newMsg += data
 
-#        CS = np.uint8(-code)
-        CS = 175
-        decoded.append(CS)
+        # Calculate Checksum
+        CS = 256
 
-        encoded = cobsr.encode(decoded)
+        i = 0
+        while i < len(newMsg):
+            CS -= newMsg[i]
+            i += 1
 
-        newMsg.append(len(encoded))
-        newMsg += encoded
+        while CS < 0:
+            CS += 256
+
+        newMsg.append(CS)
+
+        # encode part of MSG. Starting at code
+        newMsg = newMsg[:4] + cobsr.encode(newMsg[4:])
+
+        # replace data length with length of encoded part
+        newMsg[3] = len(newMsg[4:])
 
         print(newMsg)
         return newMsg
@@ -133,8 +143,8 @@ if __name__ == "__main__":
     ser = serial.Serial(args.port, baudrate = baudrate)  # open serial port
 
     parseProtocol = ParseProtocol()
-    
-    ser.write( parseProtocol.compileMessage(0,'R',1,0xFE,bytearray()) )
+
+    ser.write( parseProtocol.compileMessage(1,'R',2,0xFE,bytearray()) )
 
     while(1):
         verbose = True
