@@ -42,17 +42,11 @@ class ParseProtocol:
         newMsg += data
 
         # Calculate Checksum
-        CS = 256
+        msgSum = 0
+        for x in newMsg:
+            msgSum += x
 
-        i = 0
-        while i < len(newMsg):
-            CS -= newMsg[i]
-            i += 1
-
-        while CS < 0:
-            CS += 256
-
-        newMsg.append(CS)
+        newMsg.append(256 - (msgSum % 256))
 
         # encode part of MSG. Starting at code
         newMsg = newMsg[:4] + cobsr.encode(newMsg[4:])
