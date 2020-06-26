@@ -3,6 +3,9 @@ from cobs import cobsr
 import argparse
 from enum import Enum
 from dataclasses import dataclass
+import time, threading
+import random
+import math
 
 class ParserStates(Enum):
     idle    = 0
@@ -29,14 +32,21 @@ class ParseProtocol:
         self.state = ParserStates.idle
         self.lastPacket = BipropellantPacket(raw=bytearray(), ACK=0, CMD=chr(0), LEN=0, rawDecoded=bytearray(), CI=0, code=0, CS=0)
         self.expectedData = 0
+        self.ci = random.randrange(254)
 
-    def compileMessage(self, ACK, cmd, CI, code, data):
+    def compileMessage(self, cmd, code, data=bytearray(), ACK=0, CI=0):
+        if CI==0:
+            self.ci = (self.ci + 1)%254
+        else:
+            self.ci = CI-1
+
+        sendCi = self.ci+1   # CI only goes from 1 to 255, not 0 to 255.
 
         newMsg = bytearray()
 
         newMsg += b'\x00'                            # Start with 0x00
         newMsg.append(((ACK & 1) << 7) | ord(cmd))   # ACK or noACK encoded with cmd
-        newMsg.append(CI)                            # continuity indicator
+        newMsg.append(sendCi)                            # continuity indicator
         newMsg.append(len(data))
         newMsg.append(code)
         newMsg += data
@@ -46,7 +56,8 @@ class ParseProtocol:
         for x in newMsg:
             msgSum += x
 
-        newMsg.append(256 - (msgSum % 256))
+        check = (256 - (msgSum % 256)) % 256
+        newMsg.append(check)
 
         # encode part of MSG. Starting at code
         newMsg = newMsg[:4] + cobsr.encode(newMsg[4:])
@@ -54,7 +65,7 @@ class ParseProtocol:
         # replace data length with length of encoded part
         newMsg[3] = len(newMsg[4:])
 
-        print(newMsg)
+    #    print(newMsg)
         return newMsg
 
 
@@ -98,14 +109,18 @@ class ParseProtocol:
             if self.expectedData == 0:
                 self.lastPacket.rawDecoded = self.lastPacket.raw[:4] + cobsr.decode(self.lastPacket.raw[4:])
                 self.lastPacket.code = "{:02x}".format(self.lastPacket.rawDecoded[4])
+                dataAsInteger = int.from_bytes(self.lastPacket.rawDecoded[5:-1], byteorder='little')
+
                 if self.lastPacket.code=='26':
                     if verbose: print('Text:"'+self.lastPacket.rawDecoded[5:-1].decode("utf-8")+'"',end=' ')
                 elif self.lastPacket.code=='fe':
-                    version = int.from_bytes(self.lastPacket.rawDecoded[5:-1], byteorder='little')
-                    if verbose: print('ProtocolVersion:'+str(version),end=' ')
+                    if verbose: print('ProtocolVersion:'+str(dataAsInteger),end=' ')
                 else:
                     if verbose: print('Code:'+self.lastPacket.code,end=' ')
-                    if verbose: print(self.lastPacket.rawDecoded[5:-1],end=' ')
+                    if self.lastPacket.CMD == 'w':
+                        if verbose: print('Write:'+str(dataAsInteger),end=' ')
+                    else:
+                        if verbose: print(self.lastPacket.rawDecoded[5:-1],end=' ')
 
                 self.lastPacket.CS = "{:02x}".format(self.lastPacket.rawDecoded[-1])
                 if verbose: print('CS:'+self.lastPacket.CS,end=' ')
@@ -119,12 +134,32 @@ class ParseProtocol:
         return self.lastPacket
 
 
+class PeriodicAction:
+    """Perform periodic action"""
+
+    def __init__(self, code):
+        self.deg = 0
+        self.code = code
+
+    def periodicFunctions(self):
+    #    ser.write( parseProtocol.compileMessage('R',0xFE) )
+
+
+        data  = int(math.sin(math.radians(self.deg))*200).to_bytes(length=4,byteorder='little', signed=True)
+        data += int(math.sin(math.radians(self.deg))*-200).to_bytes(length=4,byteorder='little', signed=True)
+        self.deg += 2
+        if self.deg > 360:
+            self.speed = 0
+
+        ser.write( parseProtocol.compileMessage('W', self.code, data) )
+        threading.Timer(0.1, self.periodicFunctions).start()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("port", help="Enter Serial Port. Example: COM5 or /dev/ttyUSB0", type=str)
     parser.add_argument("-b", "--baudrate", help="Baudrate, default 38400", type=int)
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
+    parser.add_argument("--send100ms", help="send a command every 100ms with sinus data. Enter code as hex like: 0x0D")
     args = parser.parse_args()
 
     if args.baudrate:
@@ -138,11 +173,15 @@ if __name__ == "__main__":
 
     parseProtocol = ParseProtocol()
 
-    ser.write( parseProtocol.compileMessage(1,'R',2,0xFE,bytearray()) )
+    if args.send100ms:
+        periodic = PeriodicAction(int(args.send100ms, base=16))
+        periodic.periodicFunctions()
 
     while(1):
-        verbose = True
         receivedPacket = parseProtocol.parse(ser.read(), verbose)
-        if receivedPacket.rawDecoded != bytearray():
-            print(receivedPacket)
+      #  if receivedPacket.rawDecoded != bytearray():
+       #     print(receivedPacket)
     #        print('ACK', receivedPacket.ACK, 'CMD', receivedPacket.CMD, 'CI', receivedPacket.CI, 'LEN', receivedPacket.LEN, 'code', receivedPacket.code, receivedPacket.rawDecoded)
+
+
+# "args": ["-v", "--send100ms", "0x0D", "/dev/ttyUSB0"]
