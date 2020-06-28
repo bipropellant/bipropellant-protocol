@@ -16,7 +16,10 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#pragma once
+
+// Define to prevent recursive inclusion
+#ifndef PROTOCOL_H
+#define PROTOCOL_H
 
 #include <stdint.h>
 
@@ -449,4 +452,6 @@ extern uint32_t (*protocol_GetTick)(void);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

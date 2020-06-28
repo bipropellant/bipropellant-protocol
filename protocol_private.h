@@ -16,7 +16,10 @@
 * You should have received a copy of the GNU General Public License
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#pragma once
+
+// Define to prevent recursive inclusion
+#ifndef PROTOCOL_PRIVATE_H
+#define PROTOCOL_PRIVATE_H
 
 #include <stdint.h>
 #include "protocol.h"
@@ -60,4 +63,6 @@ PARAMSTAT_FN getParamHandler( PROTOCOL_STAT *s, unsigned char code );
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
