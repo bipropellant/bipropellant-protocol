@@ -425,7 +425,7 @@ const static PARAMSTAT initialparams[] = {
     { 0x01, "sensor data",             NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SENSOR_FRAME),          fn_defaultProcessingReadOnly },
 
     // Control and Measurements
-    { 0x02, "hall data",               NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_HALL_DATA_STRUCT),      fn_defaultProcessingReadOnly },
+    { 0x02, "hall data",               NULL,  UI_NONE,  &contentbuf, 2*sizeof(PROTOCOL_HALL_DATA_STRUCT),      fn_defaultProcessingReadOnly },
     { 0x03, "speed control mm/s",      NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_SPEED_DATA),            fn_defaultProcessingPreWriteClear },
     { 0x04, "hall position mm",        NULL,  UI_NONE,  &contentbuf, sizeof(PROTOCOL_POSN),                  fn_defaultProcessingPreWriteClear },
     { 0x05, "position control increment mm",NULL,UI_NONE,&contentbuf,sizeof(PROTOCOL_POSN_INCR),             fn_defaultProcessingPreWriteClear },
