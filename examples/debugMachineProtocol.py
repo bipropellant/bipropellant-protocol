@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import time, threading
 import random
 import math
+import time
 
 class ParserStates(Enum):
     idle    = 0
@@ -33,6 +34,7 @@ class ParseProtocol:
         self.lastPacket = BipropellantPacket(raw=bytearray(), ACK=0, CMD=chr(0), LEN=0, rawDecoded=bytearray(), CI=0, code=0, CS=0)
         self.expectedData = 0
         self.ci = random.randrange(254)
+        self.receiveCounter = 0
 
     def compileMessage(self, cmd, code, data=bytearray(), ACK=0, CI=0):
         if CI==0:
@@ -78,7 +80,8 @@ class ParseProtocol:
             self.lastPacket = BipropellantPacket(raw=bytearray(), ACK=0, CMD=chr(0), LEN=0, rawDecoded=bytearray(), CI=0, code=0, CS=0)
             self.lastPacket.raw.append(ord(newCharacter))
 
-            if verbose: print(end = '\n> ')
+            self.receiveCounter += 1
+            if verbose: print('\n'+str(self.receiveCounter),end='< ')
             self.state = ParserStates.waitForCMD
 
         elif self.state == ParserStates.waitForCMD:
@@ -115,6 +118,8 @@ class ParseProtocol:
                     if verbose: print('Text:"'+self.lastPacket.rawDecoded[5:-1].decode("utf-8")+'"',end=' ')
                 elif self.lastPacket.code=='fe':
                     if verbose: print('ProtocolVersion:'+str(dataAsInteger),end=' ')
+                elif self.lastPacket.code=='27':
+                    if verbose: print('Ping:'+str(int(round(time.time() * 1000)) - dataAsInteger)+'ms',end=' ')
                 else:
                     if verbose: print('Code:'+self.lastPacket.code,end=' ')
                     if self.lastPacket.CMD == 'w':
@@ -140,19 +145,25 @@ class PeriodicAction:
     def __init__(self, code):
         self.deg = 0
         self.code = code
+        self.sentCounter = 0
 
     def periodicFunctions(self):
     #    ser.write( parseProtocol.compileMessage('R',0xFE) )
 
-
-        data  = int(math.sin(math.radians(self.deg))*200).to_bytes(length=4,byteorder='little', signed=True)
-        data += int(math.sin(math.radians(self.deg))*-200).to_bytes(length=4,byteorder='little', signed=True)
-        self.deg += 2
-        if self.deg > 360:
-            self.speed = 0
+        data  = bytearray()
+        if self.code == 0x27:
+            data += int(round(time.time() * 1000)).to_bytes(length=8,byteorder='little', signed=True)
+        else:
+            data += int(math.sin(math.radians(self.deg))*200).to_bytes(length=4,byteorder='little', signed=True)
+            data += int(math.sin(math.radians(self.deg))*-200).to_bytes(length=4,byteorder='little', signed=True)
+            self.deg += 2
+            if self.deg > 360:
+                self.speed = 0
 
         ser.write( parseProtocol.compileMessage('W', self.code, data) )
-        threading.Timer(0.1, self.periodicFunctions).start()
+        self.sentCounter += 1
+        print('\n'+str(self.sentCounter),end='> ')
+        threading.Timer(0.01, self.periodicFunctions).start()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
